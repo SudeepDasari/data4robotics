@@ -1,0 +1,29 @@
+# Copyright (c) Sudeep Dasari, 2023
+
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+_target_: data4robotics.task.DefaultTask
+obs_dim: 7
+ac_dim: 7
+n_cams: 1
+
+
+train_buffer:
+  _target_: data4robotics.replay_buffer.RobobufReplayBuffer
+  buffer_path: ${buffer_path}
+  transform: ${transform:${train_transform}}
+  n_test_trans: 500
+  ac_chunk: ${ac_chunk}
+  mode: train
+  cam_idx: 0
+
+test_buffer:
+  _target_: data4robotics.replay_buffer.RobobufReplayBuffer
+  buffer_path: ${buffer_path}
+  transform: ${transform:preproc}
+  n_test_trans: 500
+  ac_chunk: ${ac_chunk}
+  mode: test
+  cam_idx: ${task.train_buffer.cam_idx}

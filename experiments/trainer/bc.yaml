@@ -1,0 +1,9 @@
+# Copyright (c) Sudeep Dasari, 2023
+
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+_target_: data4robotics.trainers.bc.BehaviorCloning
+lr: 0.0001
+weight_decay: 0.0001

@@ -1,0 +1,43 @@
+# Copyright (c) Sudeep Dasari, 2023
+
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+defaults:
+  - agent: default
+  - task: franka
+  - trainer: bc
+  - override hydra/launcher: slurm
+  - _self_
+
+
+hydra:
+  run:
+    dir: bc_finetune/${exp_name}/${hydra:runtime.choices.task}_${hydra:runtime.choices.agent/features}_${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${base:}/bc_finetune/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: run${hydra:job.num}_${hydra:runtime.choices.task}_${hydra:runtime.choices.agent/features}
+
+rt: ${hydra:runtime.choices.agent/features}
+
+exp_name: test
+checkpoint_path: ${exp_name}.ckpt
+batch_size: 100
+num_workers: 10
+max_iterations: 50000
+eval_freq: 10000
+save_freq: 10000
+devices: 1
+seed: 292285
+
+buffer_path: ./buffer.pkl
+ac_chunk: 1
+train_transform: medium
+
+wandb:
+  name: null
+  project: data_proj_finetune
+  group: ${exp_name}
+  sweep_name_prefix: eval
+  debug: False
