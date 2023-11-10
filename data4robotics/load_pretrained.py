@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import os, torch, data4robotics
+import os, torch, subprocess, data4robotics
 from torchvision import transforms
 from data4robotics.models import vit
 from data4robotics.models import resnet
@@ -16,8 +16,8 @@ FEATURE_PATH = os.path.join(BASE_PATH, "visual_features")
 
 
 def _check_and_download():
-    download_script = os.path.join(BASE_PATH, 'download_features.sh')
-    os.system(download_script)
+    download_script = os.path.join(BASE_PATH, "download_features.sh")
+    subprocess.run([download_script, BASE_PATH], check=True)
 
 
 def default_transform():
