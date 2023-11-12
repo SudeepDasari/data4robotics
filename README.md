@@ -20,6 +20,7 @@ Our repository is easy to install using miniconda or anaconda:
 conda env create -f env.yml
 conda activate data4robotics
 pip install git+https://github.com/AGI-Labs/robobuf.git
+pip install git+https://github.com/facebookresearch/r3m.git
 pip install -e ./
 ```
 
