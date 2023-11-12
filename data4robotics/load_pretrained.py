@@ -16,8 +16,15 @@ FEATURE_PATH = os.path.join(BASE_PATH, "visual_features")
 
 
 def _check_and_download():
+    old_cwd = os.getcwd()
+
+    # change cwd to main folder and run download script
+    os.chdir(BASE_PATH)
     download_script = os.path.join(BASE_PATH, 'download_features.sh')
     os.system(download_script)
+
+    # change cwd back to old location
+    os.chdir(old_cwd)
 
 
 def default_transform():
