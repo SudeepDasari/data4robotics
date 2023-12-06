@@ -16,7 +16,7 @@ hydra:
   run:
     dir: bc_finetune/${exp_name}/${hydra:runtime.choices.task}_${hydra:runtime.choices.agent/features}_${now:%Y-%m-%d_%H-%M-%S}
   sweep:
-    dir: ${base:}/bc_finetune/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${base:}/../bc_finetune/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
     subdir: run${hydra:job.num}_${hydra:runtime.choices.task}_${hydra:runtime.choices.agent/features}
 
 rt: ${hydra:runtime.choices.agent/features}
