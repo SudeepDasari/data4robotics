@@ -30,10 +30,11 @@ class Agent(nn.Module):
         layers.append(nn.Dropout(dropout))
         self._shared_mlp = nn.Sequential(*layers)
 
-    def forward(self, imgs, obs, zero_std=False):
+    def forward(self, imgs, obs, ac_flat):
         s_t = self._shared_forward(imgs, obs)
-        action_dist = self._policy(s_t, zero_std=zero_std)
-        return action_dist
+        action_dist = self._policy(s_t)
+        loss = -torch.mean(action_dist.log_prob(ac_flat)) 
+        return loss
 
     def get_actions(self, img, obs, zero_std=True):
         policy_in = self._shared_forward(img, obs)

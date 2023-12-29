@@ -19,10 +19,8 @@ class BehaviorCloning(BaseTrainer):
         imgs, obs, actions = [ar.to(self.device_id) for ar in \
                                                   (imgs, obs, actions)]
 
-        action_dist = self.model(imgs, obs)
         ac_flat = actions.reshape((actions.shape[0], -1))
-        loss = -torch.mean(action_dist.log_prob(ac_flat)) 
-
+        loss = self.model(imgs, obs, ac_flat)
         self.log("bc_loss", global_step, loss.item())
         return loss
 
