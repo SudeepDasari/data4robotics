@@ -29,6 +29,7 @@ class Agent(nn.Module):
             layers.append(nn.ReLU())
         layers.append(nn.Dropout(dropout))
         self._shared_mlp = nn.Sequential(*layers)
+        self.obs_enc_dim = mlp_def[-1]
 
     def forward(self, imgs, obs, ac_flat):
         s_t = self._shared_forward(imgs, obs)

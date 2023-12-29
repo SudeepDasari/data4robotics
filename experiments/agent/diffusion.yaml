@@ -1,0 +1,19 @@
+# Copyright (c) Sudeep Dasari, 2023
+
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+defaults:
+  - features: vit_base
+  - _self_
+
+_target_: data4robotics.models.diffusion.DiffusionAgent
+shared_mlp: [512]
+odim: ${task.obs_dim}
+n_cams: ${task.n_cams}
+use_obs: True
+dropout: 0.1
+diffusion_steps: 20
+ac_dim: ${task.ac_dim}
+ac_chunk: ${ac_chunk}
