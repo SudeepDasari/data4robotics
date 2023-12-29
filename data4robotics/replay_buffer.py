@@ -101,7 +101,6 @@ class RobobufReplayBuffer(ReplayBuffer):
         with open(buffer_path, 'rb') as f:
             buf = RB.load_traj_list(pkl.load(f))
         assert len(buf) > n_test_trans, "Not enough transitions!"
-        assert ac_chunk == 1, "Only supports ac_chunk of 1 for now!"
 
         # shuffle the list with the fixed seed
         rng = random.Random(BUF_SHUFFLE_RNG)
@@ -116,15 +115,21 @@ class RobobufReplayBuffer(ReplayBuffer):
         
         self.transform = transform
         self.s_a_sprime = []
-        last = 0
         print(f'Building {mode} buffer with cam_idx={cam_idx}')
         for idx in tqdm.tqdm(index_list):
             t = buf[idx]
-            if t.next is None:
-                last += 1
+
+            loop_t, chunked_actions = t, []
+            for _ in range(ac_chunk):
+                if loop_t.next is None:
+                    break
+                chunked_actions.append(loop_t.action[None])
+                loop_t = loop_t.next
+
+            if len(chunked_actions) != ac_chunk:
                 continue
 
             i_t, o_t = t.obs.image(cam_idx)[None], t.obs.state
             i_t_prime, o_t_prime = t.next.obs.image(cam_idx)[None], t.next.obs.state
-            a_t = t.action
+            a_t = np.concatenate(chunked_actions, 0)
             self.s_a_sprime.append(((i_t, o_t), a_t, (i_t_prime, o_t_prime)))
