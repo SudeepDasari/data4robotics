@@ -107,13 +107,14 @@ class DiffusionAgent(Agent):
 
         # begin diffusion process
         self.diffusion_schedule.set_timesteps(self._diffusion_steps)
+        self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
             timestep = timestep.unsqueeze(0).to(device)
             noise_pred = self.noise_net(s_t, noise_actions, timestep)
-            
+
             # take diffusion step
-            noise_actions = self.scheduler.step(model_output=noise_pred, 
+            noise_actions = self.diffusion_schedule.step(model_output=noise_pred, 
                                                 timestep=timestep, 
                                                 sample=noise_actions).prev_sample
 
