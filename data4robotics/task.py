@@ -45,3 +45,44 @@ class DefaultTask:
         print(f'Step: {global_step}\tVal Loss: {mean_val_loss:.4f}')
         if wandb.run is not None:
             wandb.log({'eval/task_loss': mean_val_loss}, step=global_step)
+
+
+class BCTask(DefaultTask):
+
+    def eval(self, trainer, global_step):
+        losses = []
+        action_l2, action_lsig = [], []
+        for batch in self.test_loader:
+            (imgs, obs), actions, _ = batch
+            B, H, A = actions.shape
+            imgs, obs, actions = [ar.to(trainer.device_id) for ar in \
+                                                  (imgs, obs, actions)]
+
+            with torch.no_grad():
+                loss = trainer.training_step(batch, global_step)
+                losses.append(loss.item())
+
+                # compare predicted actions versus GT
+                pred_actions = trainer.model.get_actions(imgs, obs)
+                
+                # calculate l2 loss between pred_action and action
+                l2_delta = torch.square(pred_actions - actions).sum((1,2))
+                
+                # calculate the % of time the signs agree
+                lsig = torch.logical_or(torch.logical_and(actions > 0, pred_actions <= 0),
+                                        torch.logical_and(actions <= 0, pred_actions > 0))
+                lsig = lsig.float().sum((1,2)) / (H * A)
+                
+                # log mean error values 
+                action_l2.append(l2_delta.mean().item())
+                action_lsig.append(lsig.mean().item())
+        
+        mean_val_loss = np.mean(losses)
+        ac_l2, ac_lsig = np.mean(action_l2), np.mean(action_lsig)
+        print(f'Step: {global_step}\tVal Loss: {mean_val_loss:.4f}')
+        print(f'Step: {global_step}\tAC L2={ac_l2:.2f}\tAC LSig={ac_lsig:.2f}')
+        
+        if wandb.run is not None:
+            wandb.log({'eval/task_loss': mean_val_loss,
+                       'eval/action_l2': ac_l2,
+                       'eval/action_lsig': ac_lsig}, step=global_step)
