@@ -9,7 +9,7 @@ defaults:
   - _self_
 
 _target_: data4robotics.models.diffusion.DiffusionAgent
-shared_mlp: [512]
+shared_mlp: []
 odim: ${task.obs_dim}
 n_cams: ${task.n_cams}
 use_obs: True
@@ -17,3 +17,11 @@ dropout: 0.1
 diffusion_steps: 20
 ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
+
+noise_net_kwargs:
+  time_dim: 32
+  learnable_features: True
+  num_blocks: 3
+  hidden_dim: 512
+  dropout_rate: ${agent.dropout}
+  use_layer_norm: True

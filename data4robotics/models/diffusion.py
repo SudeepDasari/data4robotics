@@ -52,7 +52,8 @@ class NoiseNetwork(nn.Module):
 
         self.time_net = nn.Sequential(FourierFeatures(time_dim, learnable_features),
                                       nn.Linear(time_dim, time_dim), nn.ReLU())
-        self.proj = nn.Linear(adim * ac_chunk + cond_dim + time_dim, hidden_dim)
+        in_dim = adim * ac_chunk + cond_dim + time_dim
+        self.proj = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.ReLU())
         net = [MLPResNetBlock(hidden_dim, dropout_rate, use_layer_norm)
                                                 for _ in range(num_blocks)]
         self.net = nn.Sequential(*net)
@@ -67,11 +68,14 @@ class NoiseNetwork(nn.Module):
 
 class DiffusionAgent(Agent):
     def __init__(self, features, shared_mlp, odim, n_cams, use_obs, 
-                 ac_dim, ac_chunk, diffusion_steps, dropout=0):
+                 ac_dim, ac_chunk, diffusion_steps, dropout=0,
+                 noise_net_kwargs=dict()):
         super().__init__(features, None, shared_mlp, odim, n_cams, 
                          use_obs, dropout)
-        self.noise_net = NoiseNetwork(ac_dim, ac_chunk, self.obs_enc_dim,
-                                      dropout_rate=dropout)
+
+        self.noise_net = NoiseNetwork(adim=ac_dim, ac_chunk=ac_chunk, 
+                                      cond_dim=self.obs_enc_dim,
+                                      **noise_net_kwargs)
         
         self._ac_dim, self._ac_chunk = ac_dim, ac_chunk
         self._diffusion_steps = diffusion_steps
@@ -110,8 +114,8 @@ class DiffusionAgent(Agent):
         self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
-            timestep = timestep.unsqueeze(0).to(device)
-            noise_pred = self.noise_net(s_t, noise_actions, timestep)
+            time = timestep.unsqueeze(0).repeat(B).to(device)
+            noise_pred = self.noise_net(s_t, noise_actions, time)
 
             # take diffusion step
             noise_actions = self.diffusion_schedule.step(model_output=noise_pred, 
