@@ -26,7 +26,7 @@ def bc_finetune(cfg: DictConfig):
             f.write(agent_yaml)
         
         agent = hydra.utils.instantiate(cfg.agent)
-        trainer = hydra.utils.instantiate(cfg.trainer, agent=agent, device_id=0)
+        trainer = hydra.utils.instantiate(cfg.trainer, model=agent, device_id=0)
 
         # build task, replay buffer, and dataloader
         task = hydra.utils.instantiate(cfg.task, batch_size=cfg.batch_size,
@@ -63,6 +63,9 @@ def bc_finetune(cfg: DictConfig):
 
             pbar.set_postfix(dict(Loss=loss.item()))
             misc.GLOBAL_STEP += 1
+
+            if misc.GLOBAL_STEP % cfg.schedule_freq == 0:
+                trainer.step_schedule()
 
             if misc.GLOBAL_STEP % cfg.eval_freq == 0:
                 trainer.set_eval()

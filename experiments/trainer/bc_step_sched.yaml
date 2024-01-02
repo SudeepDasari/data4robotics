@@ -12,3 +12,10 @@ optim_builder:
   optimizer_kwargs:
     lr: ${lr}
     weight_decay: 0.0001
+
+schedule_builder:
+  _target_: data4robotics.trainers.utils.schedule_builder
+  schedule_type: 'StepLR'
+  schedule_kwargs:
+    step_size: 10
+    gamma: 0.5

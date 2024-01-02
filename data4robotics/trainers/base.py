@@ -31,32 +31,42 @@ class RunningMean:
 
 
 class BaseTrainer(ABC):
-    def __init__(self, model, device_id):
+    def __init__(self, model, device_id, optim_builder,
+                 schedule_builder=None):
         self.model, self.device_id = model, device_id
         self.set_device(device_id)
-        self.optim = self.configure_optimizers()
+        self.optim = optim_builder(self.model.parameters())
+        self.schedule = None if schedule_builder is None \
+                        else schedule_builder(self.optim)
         self._trackers = dict()
         self._is_train = True; self.set_train()
 
     @abstractmethod
     def training_step(self, batch_input, global_step):
         pass
-
-    @abstractmethod
-    def configure_optimizers(self):
-        pass
+    
+    @property
+    def lr(self):
+        if self.schedule is None:
+            return self.optim.param_groups[0]['lr']
+        return self.schedule.get_last_lr()[0]
+    
+    def step_schedule(self):
+        if self.schedule is None:
+            return
+        self.schedule.step()
 
     def save_checkpoint(self, save_path, global_step):
         model = self.model
         model_weights = model.module.state_dict() if isinstance(model, DDP) \
                         else model.state_dict()
+        schedule_state = dict() if self.schedule is None \
+                         else self.schedule.state_dict()
         save_dict = dict(model=model_weights,
                          optim=self.optim.state_dict(),
+                         schedule=schedule_state,
                          global_step = global_step)
         torch.save(save_dict, save_path)
-    
-    def _save_callback(self, save_path, save_dict):
-        pass
 
     def load_checkpoint(self, load_path):
         load_dict = torch.load(load_path)
@@ -64,7 +74,11 @@ class BaseTrainer(ABC):
         model = model.module if isinstance(model, DDP) \
                 else model
         model.load_state_dict(load_dict['model'])
+        
         self.optim.load_state_dict(load_dict['optim'])
+        if self.schedule is not None:
+            self.schedule.load_state_dict(load_dict['schedule'])
+        
         return load_dict['global_step']
 
     def _load_callback(self, load_path, load_dict):
@@ -72,6 +86,10 @@ class BaseTrainer(ABC):
     
     def wrap_ddp(self):
         self.model = DDP(model, device_ids=[self.device_id])
+
+    @property
+    def is_train(self):
+        return self._is_train
 
     def set_train(self):
         self._is_train = True
