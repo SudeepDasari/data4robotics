@@ -38,6 +38,7 @@ class MLPResNetBlock(nn.Module):
         layers.append(nn.Linear(dim, alpha * dim))
         layers.append(nn.ReLU())
         layers.append(nn.Linear(alpha * dim, dim))
+        layers.append(nn.ReLU())
         self.net = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -57,7 +58,7 @@ class NoiseNetwork(nn.Module):
         net = [MLPResNetBlock(hidden_dim, dropout_rate, use_layer_norm)
                                                 for _ in range(num_blocks)]
         self.net = nn.Sequential(*net)
-        self.out = nn.Sequential(nn.ReLU(), nn.Linear(hidden_dim, adim * ac_chunk))
+        self.out = nn.Linear(hidden_dim, adim * ac_chunk)
     
     def forward(self, obs_enc, noise_ac_flat, time):
         time_enc = self.time_net(time)
