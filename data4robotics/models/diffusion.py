@@ -45,6 +45,30 @@ class MLPResNetBlock(nn.Module):
         return x + self.net(x)
 
 
+class MLPResFILMBlock(nn.Module):
+    def __init__(self, dim, cond_dim, dropout=0.1, layer_norm=True, alpha=2):
+        super().__init__()
+
+        top_layers = [nn.Dropout(dropout)]
+        if layer_norm:
+            top_layers.append(nn.LayerNorm(dim))
+        
+        top_layers.append(nn.Linear(dim, alpha * dim))
+        top_layers.append(nn.ReLU())
+        self.top_layers = nn.Sequential(*top_layers)
+
+        self.film_embed = nn.Sequential(nn.Linear(cond_dim, alpha * dim),
+                                        nn.ReLU())
+        self.out_layers = nn.Sequential(nn.Linear(alpha * dim, dim),
+                                        nn.ReLU())                               
+
+    def forward(self, x, cond):
+        out = self.top_layers(x)
+        out = self.film_embed(cond) + out
+        out = self.out_layers(out)
+        return x + out
+
+
 class NoiseNetwork(nn.Module):
     def __init__(self, adim, ac_chunk, cond_dim, time_dim=32, learnable_features=True,
                   num_blocks=3, hidden_dim=256, dropout_rate=0.1, 
@@ -55,15 +79,21 @@ class NoiseNetwork(nn.Module):
                                       nn.Linear(time_dim, time_dim), nn.ReLU())
         in_dim = adim * ac_chunk + cond_dim + time_dim
         self.proj = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.ReLU())
-        net = [MLPResNetBlock(hidden_dim, dropout_rate, use_layer_norm)
-                                                for _ in range(num_blocks)]
-        self.net = nn.Sequential(*net)
+        net = [MLPResFILMBlock(hidden_dim, in_dim, dropout_rate, use_layer_norm)
+                                                      for _ in range(num_blocks)]
+        self.blocks = nn.ModuleList(net)
         self.out = nn.Linear(hidden_dim, adim * ac_chunk)
     
     def forward(self, obs_enc, noise_ac_flat, time):
         time_enc = self.time_net(time)
-        x = self.proj(torch.cat((noise_ac_flat, obs_enc, time_enc), -1))
-        x = self.net(x)
+        cond = torch.cat((noise_ac_flat, obs_enc, time_enc), -1)
+        
+        # apply diffusion mlp blocks
+        x = self.proj(cond)
+        for b in self.blocks:
+            x = b(x, cond)
+        
+        # apply final linear layer
         return self.out(x)
 
 
