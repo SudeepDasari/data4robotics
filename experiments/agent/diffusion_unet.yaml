@@ -1,0 +1,25 @@
+# Copyright (c) Sudeep Dasari, 2023
+
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+defaults:
+  - features: resnet18_gn
+  - _self_
+
+_target_: data4robotics.models.diffusion_unet.DiffusionUnetAgent
+shared_mlp: []
+odim: ${task.obs_dim}
+n_cams: ${task.n_cams}
+use_obs: False
+dropout: 0.1
+diffusion_steps: 100
+ac_dim: ${task.ac_dim}
+ac_chunk: 16
+
+noise_net_kwargs:
+  diffusion_step_embed_dim: 256
+  down_dims: [256, 512, 1024]
+  kernel_size: 3
+  n_groups: 8
