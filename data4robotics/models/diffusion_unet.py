@@ -295,7 +295,7 @@ class DiffusionUnetAgent(Agent):
         self._ac_dim, self._ac_chunk = ac_dim, ac_chunk
         self._diffusion_steps = diffusion_steps
         self.diffusion_schedule = DDIMScheduler(
-                                    num_train_timesteps=100,
+                                    num_train_timesteps=diffusion_steps,
                                     beta_start=0.0001,
                                     beta_end=0.02,
                                     beta_schedule="squaredcos_cap_v2",
