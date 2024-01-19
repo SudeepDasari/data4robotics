@@ -305,7 +305,6 @@ class DiffusionUnetAgent(Agent):
                                     )
         
     def forward(self, imgs, obs, actions):
-        import ipdb; ipdb.set_trace()
         # get observation encoding and sample noise/timesteps
         B, device = imgs.shape[0], imgs.device
         s_t = self._shared_forward(imgs, obs)
