@@ -5,7 +5,7 @@
 
 
 defaults:
-  - features: resnet18_gn
+  - features: resnet_gn
   - _self_
 
 _target_: data4robotics.models.diffusion_unet.DiffusionUnetAgent
@@ -16,7 +16,7 @@ use_obs: False
 dropout: 0.1
 diffusion_steps: 100
 ac_dim: ${task.ac_dim}
-ac_chunk: 16
+ac_chunk: ${ac_chunk}
 
 noise_net_kwargs:
   diffusion_step_embed_dim: 256

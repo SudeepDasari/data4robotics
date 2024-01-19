@@ -1,4 +1,4 @@
-# Copyright (c) Sudeep Dasari, 2023
+# U-Net implementation from: Diffusion Policy Codebase (Chi et al; arXiv:2303.04137)
 
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
@@ -221,7 +221,7 @@ class ConditionalUnet1D(nn.Module):
         self.down_modules = down_modules
         self.final_conv = final_conv
 
-        print("number of parameters: {:e}".format(sum(p.numel() for p in self.parameters())))
+        print("number of diffusion parameters: {:e}".format(sum(p.numel() for p in self.parameters())))
 
     def forward(
         self,
@@ -287,7 +287,6 @@ class DiffusionUnetAgent(Agent):
                  noise_net_kwargs=dict()):
         super().__init__(features, None, shared_mlp, odim, n_cams, 
                          use_obs, dropout)
-
         self.noise_net = ConditionalUnet1D(input_dim=ac_dim, 
                                            global_cond_dim=self.obs_enc_dim,
                                            **noise_net_kwargs)
@@ -306,16 +305,18 @@ class DiffusionUnetAgent(Agent):
                                     )
         
     def forward(self, imgs, obs, actions):
+        import ipdb; ipdb.set_trace()
         # get observation encoding and sample noise/timesteps
         B, device = imgs.shape[0], imgs.device
         s_t = self._shared_forward(imgs, obs)
-        noise = torch.randn_like(actions)
         timesteps = torch.randint(low=0, high=self._diffusion_steps, size=(B,), 
                                   device=device).long()
+        actions = actions.reshape((B, self.ac_chunk, self.ac_dim))
+        noise = torch.randn_like(actions)
 
         # construct noise actions given real actions, noise, and diffusion schedule
         noise_acs = self.diffusion_schedule.add_noise(actions, noise, timesteps)
-        noise_pred = self.noise_net(s_t, noise_acs, timesteps)
+        noise_pred = self.noise_net(noise_acs, timesteps, s_t)
         
         # calculate loss for noise net
         loss = nn.functional.mse_loss(noise_pred, noise, reduction="none").sum(dim=1)
@@ -326,15 +327,15 @@ class DiffusionUnetAgent(Agent):
         # get observation encoding and sample noise
         B, device = imgs.shape[0], imgs.device
         s_t = self._shared_forward(imgs, obs)
-        noise_actions = torch.randn(B, self.ac_chunk, self.ac_chunk, device=device)
+        noise_actions = torch.randn(B, self.ac_chunk, self.ac_dim, device=device)
 
         # begin diffusion process
         self.diffusion_schedule.set_timesteps(self._diffusion_steps)
         self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
-            time = timestep.unsqueeze(0).repeat(B).to(device)
-            noise_pred = self.noise_net(s_t, noise_actions, time)
+            batched_timestep = timestep.unsqueeze(0).repeat(B).to(device)
+            noise_pred = self.noise_net(noise_actions, batched_timestep, s_t)
 
             # take diffusion step
             noise_actions = self.diffusion_schedule.step(model_output=noise_pred, 

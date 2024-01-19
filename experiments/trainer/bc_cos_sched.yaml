@@ -8,14 +8,17 @@ _target_: data4robotics.trainers.bc.BehaviorCloning
 
 optim_builder:
   _target_: data4robotics.trainers.utils.optim_builder
-  optimizer_type: Adam
+  optimizer_type: AdamW
   optimizer_kwargs:
     lr: ${lr}
-    weight_decay: 0.0001
+    betas: [0.95, 0.999]
+    weight_decay: 1.0e-6
+    eps: 1.0e-8
 
 schedule_builder:
   _target_: data4robotics.trainers.utils.schedule_builder
-  schedule_type: 'StepLR'
+  schedule_type: 'cosine'
+  from_diffusers: True
   schedule_kwargs:
-    step_size: 1
-    gamma: 0.99997
+    num_warmup_steps: 500
+    num_training_steps: ${max_iterations}

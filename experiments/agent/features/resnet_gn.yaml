@@ -6,8 +6,8 @@
 
 _target_: data4robotics.models.resnet.ResNet
 size: 18
-pretrained: null
-restore_path: ''
+weights: 'IMAGENET1K_V1'   # for torchvision weight restore
+restore_path: ''           # for restoring our custom weights
 norm_cfg:
   name: group_norm
   num_groups: 16

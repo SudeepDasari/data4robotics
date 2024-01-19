@@ -23,18 +23,31 @@ def _make_norm(norm_cfg):
 
 def _construct_resnet(size, norm, weights=None):
     if size == 18:
-        return models.resnet18(weights=weights, norm_layer=norm)
-    if size == 34:
-        return models.resnet34(weights=weights, norm_layer=norm)
-    if size == 50:
-        return models.resnet34(weights=weights, norm_layer=norm)
-    raise NotImplementedError(f'Missing size: {size}')
+        w = models.ResNet18_Weights
+        m = models.resnet18(norm_layer=norm)
+    elif size == 34:
+        w = models.ResNet34_Weights
+        m = models.resnet34(norm_layer=norm)
+    elif size == 50:
+        w = models.ResNet50_Weights
+        m = models.resnet50(norm_layer=norm)
+    else:
+        raise NotImplementedError(f'Missing size: {size}')
+    
+    if weights is not None:
+        w = w.verify(weights).get_state_dict(progress=True)
+        old_keys = list(w.keys())
+        if norm is not nn.BatchNorm2d:
+            w = {k:v for k, v in w.items() if 'running_mean' not in k \
+                                           and 'running_var' not in k}
+        m.load_state_dict(w)
+    return m
 
 
 class ResNet(BaseModel):
-    def __init__(self, size, norm_cfg, pretrained=None, restore_path=''):
+    def __init__(self, size, norm_cfg, weights=None, restore_path=''):
         norm_layer = _make_norm(norm_cfg)
-        model = _construct_resnet(size, norm_layer, pretrained)
+        model = _construct_resnet(size, norm_layer, weights)
         model.fc = Identity()
         super().__init__(model, restore_path)
         self._size = size
