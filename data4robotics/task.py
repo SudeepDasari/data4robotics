@@ -53,10 +53,10 @@ class BCTask(DefaultTask):
         losses = []
         action_l2, action_lsig = [], []
         for batch in self.test_loader:
-            (imgs, obs), actions, _ = batch
+            (imgs, obs), actions, mask = batch
             B, H, A = actions.shape
-            imgs, obs, actions = [ar.to(trainer.device_id) for ar in \
-                                                  (imgs, obs, actions)]
+            imgs, obs, actions, mask = [ar.to(trainer.device_id) for ar in \
+                                                  (imgs, obs, actions, mask)]
 
             with torch.no_grad():
                 loss = trainer.training_step(batch, global_step)
@@ -66,12 +66,12 @@ class BCTask(DefaultTask):
                 pred_actions = trainer.model.get_actions(imgs, obs)
                 
                 # calculate l2 loss between pred_action and action
-                l2_delta = torch.square(pred_actions - actions).sum((1,2))
+                l2_delta = torch.square(mask * (pred_actions - actions)).sum((1, 2))
                 
                 # calculate the % of time the signs agree
                 lsig = torch.logical_or(torch.logical_and(actions > 0, pred_actions <= 0),
                                         torch.logical_and(actions <= 0, pred_actions > 0))
-                lsig = lsig.float().sum((1,2)) / (H * A)
+                lsig = (lsig.float() * mask).sum((1, 2)) / mask.sum((1, 2))
                 
                 # log mean error values 
                 action_l2.append(l2_delta.mean().item())

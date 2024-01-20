@@ -31,10 +31,12 @@ class Agent(nn.Module):
         self._shared_mlp = nn.Sequential(*layers)
         self.obs_enc_dim = mlp_def[-1]
 
-    def forward(self, imgs, obs, ac_flat):
+    def forward(self, imgs, obs, ac_flat, mask_flat):
         s_t = self._shared_forward(imgs, obs)
         action_dist = self._policy(s_t)
-        loss = -torch.mean(action_dist.log_prob(ac_flat)) 
+        loss = -torch.mean(action_dist.masked_log_prob(ac_flat, mask_flat)) \
+               if hasattr(action_dist, 'masked_log_prob') else \
+               -(action_dist.log_prob(ac_flat) * mask_flat).sum() / mask_flat.sum()
         return loss
 
     def get_actions(self, img, obs, zero_std=True):

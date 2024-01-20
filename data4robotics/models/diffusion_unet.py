@@ -304,13 +304,16 @@ class DiffusionUnetAgent(Agent):
                                     prediction_type="epsilon"
                                     )
         
-    def forward(self, imgs, obs, actions):
+    def forward(self, imgs, obs, ac_flat, mask_flat):
         # get observation encoding and sample noise/timesteps
         B, device = imgs.shape[0], imgs.device
         s_t = self._shared_forward(imgs, obs)
         timesteps = torch.randint(low=0, high=self._diffusion_steps, size=(B,), 
                                   device=device).long()
-        actions = actions.reshape((B, self.ac_chunk, self.ac_dim))
+        
+        # diffusion unet logic assumes [B, T, adim]
+        mask = mask_flat.reshape((B, self.ac_chunk, self.ac_dim))
+        actions = ac_flat.reshape((B, self.ac_chunk, self.ac_dim))
         noise = torch.randn_like(actions)
 
         # construct noise actions given real actions, noise, and diffusion schedule
@@ -318,9 +321,9 @@ class DiffusionUnetAgent(Agent):
         noise_pred = self.noise_net(noise_acs, timesteps, s_t)
         
         # calculate loss for noise net
-        loss = nn.functional.mse_loss(noise_pred, noise, reduction="none").sum(dim=1)
-        loss = loss.mean()
-        return loss
+        loss = nn.functional.mse_loss(noise_pred, noise, reduction="none")
+        loss = (loss * mask).sum((1,2))    # mask the loss to only consider "real" acs
+        return loss.mean()
 
     def get_actions(self, imgs, obs):
         # get observation encoding and sample noise
