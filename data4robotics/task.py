@@ -66,7 +66,8 @@ class BCTask(DefaultTask):
                 pred_actions = trainer.model.get_actions(imgs, obs)
                 
                 # calculate l2 loss between pred_action and action
-                l2_delta = torch.square(mask * (pred_actions - actions)).sum((1, 2))
+                l2_delta = torch.square(mask * (pred_actions - actions))
+                l2_delta = l2_delta.sum((1, 2)) / mask.sum((1, 2))
                 
                 # calculate the % of time the signs agree
                 lsig = torch.logical_or(torch.logical_and(actions > 0, pred_actions <= 0),
