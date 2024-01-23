@@ -13,7 +13,9 @@ OmegaConf.register_new_resolver("env", lambda x: os.environ[x])
 OmegaConf.register_new_resolver("base", lambda: os.path.dirname(os.path.abspath(__file__)))
 OmegaConf.register_new_resolver("transform", lambda name: get_transform_by_name(name))
 OmegaConf.register_new_resolver("mult", lambda x, y: int(x) * int(y))
+OmegaConf.register_new_resolver("add", lambda x, y: int(x) + int(y))
 OmegaConf.register_new_resolver("index", lambda arr, idx: arr[idx])
+OmegaConf.register_new_resolver("len", lambda arr: len(arr))
 
 
 GLOBAL_STEP = 0

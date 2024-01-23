@@ -7,7 +7,7 @@
 _target_: data4robotics.task.BCTask
 obs_dim: 7
 ac_dim: 7
-n_cams: 1
+n_cams: ${len:${task.train_buffer.cam_indexes}}
 
 
 train_buffer:
@@ -17,7 +17,8 @@ train_buffer:
   n_test_trans: 500
   ac_chunk: ${ac_chunk}
   mode: train
-  cam_idx: 0
+  cam_indexes: [0]
+  past_frames: ${add:${img_chunk},-1}
 
 test_buffer:
   _target_: data4robotics.replay_buffer.RobobufReplayBuffer
@@ -26,4 +27,5 @@ test_buffer:
   n_test_trans: 500
   ac_chunk: ${ac_chunk}
   mode: test
-  cam_idx: ${task.train_buffer.cam_idx}
+  cam_indexes: ${task.train_buffer.cam_indexes}
+  past_frames: ${add:${img_chunk},-1}

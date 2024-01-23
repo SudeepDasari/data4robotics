@@ -14,9 +14,12 @@ odim: ${task.obs_dim}
 n_cams: ${task.n_cams}
 use_obs: False
 dropout: 0.1
-diffusion_steps: 100
+train_diffusion_steps: 100
+eval_diffusion_steps: 16
 ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
+imgs_per_cam: ${img_chunk}
+share_cam_features: False
 
 noise_net_kwargs:
   diffusion_step_embed_dim: 256

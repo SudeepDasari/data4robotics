@@ -35,6 +35,7 @@ seed: 292285
 
 buffer_path: ./buffer.pkl
 ac_chunk: 1
+img_chunk: 1  # number of image timesteps to use (including current one)
 train_transform: diffusion
 
 wandb:

@@ -55,8 +55,9 @@ class BCTask(DefaultTask):
         for batch in self.test_loader:
             (imgs, obs), actions, mask = batch
             B, H, A = actions.shape
-            imgs, obs, actions, mask = [ar.to(trainer.device_id) for ar in \
-                                                  (imgs, obs, actions, mask)]
+            imgs = {k: v.to(trainer.device_id) for k, v in imgs.items()}
+            obs, actions, mask = [ar.to(trainer.device_id) for ar in \
+                                                           (obs, actions, mask)]
 
             with torch.no_grad():
                 loss = trainer.training_step(batch, global_step)

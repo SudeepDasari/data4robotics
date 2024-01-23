@@ -280,21 +280,24 @@ class ConditionalUnet1D(nn.Module):
         return x
 
 
-
 class DiffusionUnetAgent(Agent):
     def __init__(self, features, shared_mlp, odim, n_cams, use_obs, 
-                 ac_dim, ac_chunk, diffusion_steps, dropout=0,
+                 ac_dim, ac_chunk, train_diffusion_steps, eval_diffusion_steps,
+                 imgs_per_cam=1, dropout=0, share_cam_features=False, 
                  noise_net_kwargs=dict()):
         super().__init__(features, None, shared_mlp, odim, n_cams, 
-                         use_obs, dropout)
+                         use_obs, imgs_per_cam, dropout, share_cam_features)
         self.noise_net = ConditionalUnet1D(input_dim=ac_dim, 
                                            global_cond_dim=self.obs_enc_dim,
                                            **noise_net_kwargs)
         
         self._ac_dim, self._ac_chunk = ac_dim, ac_chunk
-        self._diffusion_steps = diffusion_steps
+        
+        assert eval_diffusion_steps <= train_diffusion_steps, "Can't eval with more steps!"
+        self._train_diffusion_steps = train_diffusion_steps
+        self._eval_diffusion_steps = eval_diffusion_steps
         self.diffusion_schedule = DDIMScheduler(
-                                    num_train_timesteps=diffusion_steps,
+                                    num_train_timesteps=train_diffusion_steps,
                                     beta_start=0.0001,
                                     beta_end=0.02,
                                     beta_schedule="squaredcos_cap_v2",
@@ -306,9 +309,9 @@ class DiffusionUnetAgent(Agent):
         
     def forward(self, imgs, obs, ac_flat, mask_flat):
         # get observation encoding and sample noise/timesteps
-        B, device = imgs.shape[0], imgs.device
+        B, device = obs.shape[0], obs.device
         s_t = self._shared_forward(imgs, obs)
-        timesteps = torch.randint(low=0, high=self._diffusion_steps, size=(B,), 
+        timesteps = torch.randint(low=0, high=self._train_diffusion_steps, size=(B,), 
                                   device=device).long()
         
         # diffusion unet logic assumes [B, T, adim]
@@ -325,14 +328,21 @@ class DiffusionUnetAgent(Agent):
         loss = (loss * mask).sum((1,2))    # mask the loss to only consider "real" acs
         return loss.mean()
 
-    def get_actions(self, imgs, obs):
+    def get_actions(self, imgs, obs, n_steps=None):
         # get observation encoding and sample noise
-        B, device = imgs.shape[0], imgs.device
+        B, device = obs.shape[0], obs.device
         s_t = self._shared_forward(imgs, obs)
         noise_actions = torch.randn(B, self.ac_chunk, self.ac_dim, device=device)
 
+        # set number of steps
+        eval_steps = self._eval_diffusion_steps
+        if n_steps is not None:
+            assert n_steps <= self._train_diffusion_steps, \
+                  f"can't be > {self._train_diffusion_steps}"
+            eval_steps = n_steps
+        
         # begin diffusion process
-        self.diffusion_schedule.set_timesteps(self._diffusion_steps)
+        self.diffusion_schedule.set_timesteps(eval_steps)
         self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
