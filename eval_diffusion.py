@@ -26,9 +26,9 @@ class BaselinePolicy:
             obs_config = yaml.safe_load(config_yaml)
         with open(Path(agent_path, "ac_norm.json"), "r") as f:
             ac_norm_dict = json.load(f)
-            mean, std = ac_norm_dict['mean'], ac_norm_dict['std']
-            self.mean = np.array(mean).astype(np.float32)
-            self.std  = np.array(std).astype(np.float32)
+            loc, scale = ac_norm_dict['loc'], ac_norm_dict['scale']
+            self.loc = np.array(loc).astype(np.float32)
+            self.scale  = np.array(scale).astype(np.float32)
 
         agent = hydra.utils.instantiate(agent_config)
         save_dict = torch.load(Path(agent_path, model_name), map_location="cpu")
@@ -47,7 +47,7 @@ class BaselinePolicy:
         bgr_img = cv2.resize(bgr_img, size, interpolation=cv2.INTER_AREA)
         rgb_img = bgr_img[:,:,::-1].copy()
         rgb_img = torch.from_numpy(rgb_img).float().permute((2, 0, 1)) / 255
-        return self.transform(rgb_img)[None].cuda()
+        return {'cam0': self.transform(rgb_img)[None].cuda()}
     
     def _proc_state(self, cart_pos, grip_pos):
         state = np.concatenate((cart_pos, np.array([grip_pos]))).astype(np.float32)
@@ -59,12 +59,11 @@ class BaselinePolicy:
                                  obs['robot_state']['gripper_position'])
         if not self._action_plan:
             with torch.no_grad():
-                self.agent._diffusion_steps = 10 # TODO make this logic cleaner also
                 ac = self.agent.get_actions(img, state)
                 self._action_plan.extend(list(ac[0].cpu().numpy().astype(np.float32))[:8])  # TODO make the "action replan freq stuff" cleaner!
 
         ac = self._action_plan.pop()
-        ac = ac * self.std + self.mean    # denormalize the actions
+        ac = ac * self.scale + self.loc    # denormalize the actions
         print('current', obs['robot_state']['cartesian_position'])
         print('action', ac)
         cur_time = time.time()
