@@ -83,11 +83,11 @@ class BaselinePolicy:
         img = self._proc_image(obs['image'][self.img_key])
         state = self._proc_state(obs['robot_state']['cartesian_position'],
                                  obs['robot_state']['gripper_position'])
-        if not self._action_plan:
-            with torch.no_grad():
-                ac = self.agent.get_actions(img, state)
-                ac = ac[0].cpu().numpy().astype(np.float32)[:PRED_HORIZON]
-                self.act_history.append(ac)
+
+        with torch.no_grad():
+            ac = self.agent.get_actions(img, state)
+            ac = ac[0].cpu().numpy().astype(np.float32)[:PRED_HORIZON]
+            self.act_history.append(ac)
 
         # handle temporal blending
         num_actions = len(self.act_history)
