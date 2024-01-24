@@ -11,7 +11,7 @@ from torch import nn
 class Agent(nn.Module):
     def __init__(self, features, policy, shared_mlp, odim, 
                        n_cams, use_obs, imgs_per_cam=1, dropout=0, 
-                       share_cam_features=False):
+                       share_cam_features=False, feat_batch_norm=True):
         super().__init__()
 
         # store visual features (duplicate weights if shared)
@@ -32,7 +32,8 @@ class Agent(nn.Module):
         self._use_obs, self._n_cams = bool(use_obs), n_cams
         mlp_in = self._odim + self.embed_dim
         mlp_def = [mlp_in] + shared_mlp
-        layers = [nn.BatchNorm1d(num_features=mlp_in)]
+        layers = [nn.BatchNorm1d(num_features=mlp_in)] if feat_batch_norm \
+                 else []
         for i, o in zip(mlp_def[:-1], mlp_def[1:]):
             layers.append(nn.Dropout(dropout))
             layers.append(nn.Linear(i, o))

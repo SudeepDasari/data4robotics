@@ -284,9 +284,10 @@ class DiffusionUnetAgent(Agent):
     def __init__(self, features, shared_mlp, odim, n_cams, use_obs, 
                  ac_dim, ac_chunk, train_diffusion_steps, eval_diffusion_steps,
                  imgs_per_cam=1, dropout=0, share_cam_features=False, 
-                 noise_net_kwargs=dict()):
+                 feat_batch_norm=True, noise_net_kwargs=dict()):
         super().__init__(features, None, shared_mlp, odim, n_cams, 
-                         use_obs, imgs_per_cam, dropout, share_cam_features)
+                         use_obs, imgs_per_cam, dropout, share_cam_features,
+                         feat_batch_norm)
         self.noise_net = ConditionalUnet1D(input_dim=ac_dim, 
                                            global_cond_dim=self.obs_enc_dim,
                                            **noise_net_kwargs)

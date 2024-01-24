@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import random, torch, tqdm
+import random, torch, tqdm, os, shutil
 import numpy as np
 import pickle as pkl
 from robobuf import ReplayBuffer as RB
@@ -109,6 +109,10 @@ class RobobufReplayBuffer(ReplayBuffer):
         with open(buffer_path, 'rb') as f:
             buf = RB.load_traj_list(pkl.load(f))
         assert len(buf) > n_test_trans, "Not enough transitions!"
+
+        norm_file = os.path.join(os.path.dirname(buffer_path), 'ac_norm.json')
+        if os.path.exists(norm_file):
+            shutil.copyfile(norm_file, './ac_norm.json')
 
         # shuffle the list with the fixed seed
         rng = random.Random(BUF_SHUFFLE_RNG)

@@ -5,7 +5,7 @@
 
 
 defaults:
-  - features: resnet_gn
+  - features: robomimic
   - _self_
 
 _target_: data4robotics.models.diffusion_unet.DiffusionUnetAgent
@@ -20,6 +20,7 @@ ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
 imgs_per_cam: ${img_chunk}
 share_cam_features: False
+feat_batch_norm: False
 
 noise_net_kwargs:
   diffusion_step_embed_dim: 256
