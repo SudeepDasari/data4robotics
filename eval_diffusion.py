@@ -17,8 +17,8 @@ from r2d2.user_interface.eval_gui import EvalGUI
 from r2d2.robot_env import RobotEnv
 
 
-PRED_HORIZON = 8
-EXP_WEIGHT = 0
+PRED_HORIZON = 16
+EXP_WEIGHT = 1
 
 
 def rmat_to_euler(rot_mat, degrees=False):
@@ -110,6 +110,10 @@ class BaselinePolicy:
         ac = ac * self.scale + self.loc
         xyz, r6, grip = ac[:3], ac[3:9], ac[9:]
         ac = np.concatenate((xyz, rot6d_to_euler(r6), grip))
+
+        # threshold the gripper to make crisp grasp decisions
+        if ac[-1] > 0.55:
+            ac[-1] = 1.0
 
         print('current', obs['robot_state']['cartesian_position'])
         print('action', ac)
