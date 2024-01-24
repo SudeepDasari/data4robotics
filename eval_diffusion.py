@@ -19,6 +19,7 @@ from r2d2.robot_env import RobotEnv
 
 PRED_HORIZON = 16
 EXP_WEIGHT = 1
+GRIP_THRESH = 0.55
 
 
 def rmat_to_euler(rot_mat, degrees=False):
@@ -108,11 +109,13 @@ class BaselinePolicy:
 
         # denormalize the actions and swap to R6
         ac = ac * self.scale + self.loc
-        xyz, r6, grip = ac[:3], ac[3:9], ac[9:]
-        ac = np.concatenate((xyz, rot6d_to_euler(r6), grip))
+        if len(ac) == 10:
+            xyz, r6, grip = ac[:3], ac[3:9], ac[9:]
+            ac = np.concatenate((xyz, rot6d_to_euler(r6), grip))
+        assert len(ac) == 7, "Assuming 7d action dim!"
 
         # threshold the gripper to make crisp grasp decisions
-        if ac[-1] > 0.55:
+        if ac[-1] > GRIP_THRESH:
             ac[-1] = 1.0
 
         print('current', obs['robot_state']['cartesian_position'])
