@@ -9,11 +9,37 @@ import yaml
 import os
 import json
 from collections import deque
+from scipy.spatial.transform import Rotation as R
 
 
 # r2d2 robot imports
 from r2d2.user_interface.eval_gui import EvalGUI
 from r2d2.robot_env import RobotEnv
+
+
+PRED_HORIZON = 8
+EXP_WEIGHT = 0
+
+
+def rmat_to_euler(rot_mat, degrees=False):
+    euler = R.from_matrix(rot_mat).as_euler("xyz", degrees=degrees)
+    return euler
+
+
+def normalize(vec, eps=1e-12):
+    norm = np.linalg.norm(vec, axis=-1)
+    norm = np.maximum(norm, eps)
+    return vec / norm
+
+
+def rot6d_to_euler(d6):
+    a1, a2 = d6[:3], d6[3:]
+    b1 = normalize(a1)
+    b2 = a2 - np.sum(b1 * a2, axis=-1, keepdims=True) * b1
+    b2 = normalize(b2)
+    b3 = np.cross(b1, b2, axis=-1)
+    out = np.stack((b1, b2, b3), axis=-2)
+    return rmat_to_euler(out)
 
 
 class BaselinePolicy:
@@ -39,7 +65,7 @@ class BaselinePolicy:
         self.img_key = obs_config['img']
 
         print(f"loaded agent from {agent_path}, at step: {save_dict['global_step']}")
-        self._action_plan = deque()
+        self.act_history = deque(maxlen=PRED_HORIZON)
         self._last_time = None
 
     def _proc_image(self, zed_img, size=(256,256)):
@@ -60,10 +86,31 @@ class BaselinePolicy:
         if not self._action_plan:
             with torch.no_grad():
                 ac = self.agent.get_actions(img, state)
-                self._action_plan.extend(list(ac[0].cpu().numpy().astype(np.float32))[:8])  # TODO make the "action replan freq stuff" cleaner!
+                ac = ac[0].cpu().numpy().astype(np.float32)[:PRED_HORIZON]
+                self.act_history.append(ac)
 
-        ac = self._action_plan.pop()
-        ac = ac * self.scale + self.loc    # denormalize the actions
+        # handle temporal blending
+        num_actions = len(self.act_history)
+        curr_act_preds = np.stack(
+                [
+                    pred_actions[i]
+                    for (i, pred_actions) in zip(
+                        range(num_actions - 1, -1, -1), self.act_history
+                    )
+                ]
+            )
+
+        # more recent predictions get exponentially *less* weight than older predictions
+        weights = np.exp(EXP_WEIGHT * np.arange(num_actions))
+        weights = weights / weights.sum()
+        # compute the weighted average across all predictions for this timestep
+        ac = np.sum(weights[:, None] * curr_act_preds, axis=0)
+
+        # denormalize the actions and swap to R6
+        ac = ac * self.scale + self.loc
+        xyz, r6, grip = ac[:3], ac[3:9], ac[9:]
+        ac = np.concatenate((xyz, rot6d_to_euler(r6), grip))
+
         print('current', obs['robot_state']['cartesian_position'])
         print('action', ac)
         cur_time = time.time()
