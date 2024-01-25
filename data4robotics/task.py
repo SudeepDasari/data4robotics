@@ -54,7 +54,6 @@ class BCTask(DefaultTask):
         action_l2, action_lsig = [], []
         for batch in self.test_loader:
             (imgs, obs), actions, mask = batch
-            B, H, A = actions.shape
             imgs = {k: v.to(trainer.device_id) for k, v in imgs.items()}
             obs, actions, mask = [ar.to(trainer.device_id) for ar in \
                                                            (obs, actions, mask)]
