@@ -19,12 +19,12 @@ def get_transform_by_name(name, size=224):
     if name == 'basic':
         return transforms.Compose([transforms.RandomResizedCrop(size=size, scale=(0.2, 1.0), antialias=False),
                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    if name == 'diffusion':
+    if name == 'medium':
         kernel_size = int(0.05 * size); kernel_size = kernel_size + (1 - kernel_size % 2)
         return transforms.Compose([transforms.RandomResizedCrop(size=size, scale=(0.9, 1.0), antialias=False),
                                    transforms.GaussianBlur(kernel_size=kernel_size),
                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    if name == 'medium':
+    if name == 'hard':
         kernel_size = int(0.05 * size); kernel_size = kernel_size + (1 - kernel_size % 2)
         return transforms.Compose([transforms.RandomResizedCrop(size=size, scale=(0.2, 1.0), antialias=False),
                                    transforms.GaussianBlur(kernel_size=kernel_size),
