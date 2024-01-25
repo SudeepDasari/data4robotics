@@ -6,7 +6,7 @@
 
 import os, hydra, traceback, torch, tqdm, yaml
 import numpy as np
-from data4robotics import misc
+from data4robotics import misc, transforms
 from omegaconf import DictConfig, OmegaConf
 base_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -31,6 +31,10 @@ def bc_finetune(cfg: DictConfig):
         # build task, replay buffer, and dataloader
         task = hydra.utils.instantiate(cfg.task, batch_size=cfg.batch_size,
                                                  num_workers=cfg.num_workers)
+        
+        # create a gpu train transform (if used)
+        gpu_transform = transforms.get_gpu_transform_by_name(cfg.train_transform) \
+                        if 'gpu' in cfg.train_transform else None
 
         # restore/save the model as required
         if resume_model is not None:
@@ -55,6 +59,13 @@ def bc_finetune(cfg: DictConfig):
             except StopIteration:
                 train_iterator = iter(task.train_loader)
                 batch = next(train_iterator)
+
+            # handle the image transform on GPU if specified
+            if gpu_transform is not None:
+                (imgs, obs), actions, mask = batch
+                imgs = {k: v.to(trainer.device_id) for k, v in imgs.items()}
+                imgs = {k: gpu_transform(v) for k, v in imgs.items()}
+                batch = ((imgs, obs), actions, mask)
 
             trainer.optim.zero_grad()
             loss = trainer.training_step(batch, misc.GLOBAL_STEP)

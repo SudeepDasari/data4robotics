@@ -19,6 +19,7 @@ train_buffer:
   mode: train
   cam_indexes: [0]
   past_frames: ${add:${img_chunk},-1}
+  ac_dim: ${task.ac_dim}
 
 test_buffer:
   _target_: data4robotics.replay_buffer.RobobufReplayBuffer
@@ -29,3 +30,4 @@ test_buffer:
   mode: test
   cam_indexes: ${task.train_buffer.cam_indexes}
   past_frames: ${add:${img_chunk},-1}
+  ac_dim: ${task.ac_dim}

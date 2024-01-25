@@ -4,15 +4,69 @@
 # LICENSE file in the root directory of this source tree.
 
 
+import torch
+from torch import nn
 from torchvision import transforms
 
 
-def image_norm(size=224):
-    return transforms.Compose([transforms.Resize((size, size)),
-                        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+class _MediumAug(nn.Module):
+    def __init__(self, pad=0, size=224):
+        super().__init__()
+        self.pad = pad
+        self.size = size
+        self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    def forward(self, x):
+        extra_dim = len(x.shape) > 4
+        if extra_dim:
+            assert len(x.shape) == 5
+            B, T, C, H, W = x.shape
+            x = x.reshape((B * T, C, H, W))
+
+        n, c, h, w = x.size()
+        assert h == w
+        if self.pad > 0:
+            padding = tuple([self.pad] * 4)
+            x = torch.nn.functional.pad(x, padding, 'replicate')
+        eps = 1.0 / (h + 2 * self.pad)
+        arange = torch.linspace(-1.0 + eps,
+                                1.0 - eps,
+                                h + 2 * self.pad,
+                                device=x.device,
+                                dtype=x.dtype)[:self.size]
+        arange = arange.unsqueeze(0).repeat(self.size, 1).unsqueeze(2)
+        base_grid = torch.cat([arange, arange.transpose(1, 0)], dim=2)
+        base_grid = base_grid.unsqueeze(0).repeat(n, 1, 1, 1)
+
+        shift = torch.randint(0,
+                            2 * self.pad + h - self.size + 1,
+                            size=(n, 1, 1, 2),
+                            device=x.device,
+                            dtype=x.dtype)
+        shift *= 2.0 / (h + 2 * self.pad)
+
+        grid = base_grid + shift
+        x = torch.nn.functional.grid_sample(x,
+                            grid,
+                            padding_mode='zeros',
+                            align_corners=False)
+        x = self.norm(x)
+        
+        if extra_dim:
+            return x.reshape((B, T, C, self.size, self.size))
+        return x
+
+
+def get_gpu_transform_by_name(name, size=224):
+    if name == 'gpu_medium':
+        return _MediumAug(size=size)
+    raise NotImplementedError
 
 
 def get_transform_by_name(name, size=224):
+    if 'gpu' in name:
+        return None
+    
     if name == 'preproc':
         return transforms.Compose([transforms.Resize((size, size), antialias=False),
                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])

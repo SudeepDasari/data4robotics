@@ -104,7 +104,7 @@ class IterableWrapper(IterableDataset):
 
 class RobobufReplayBuffer(ReplayBuffer):
     def __init__(self, buffer_path, transform=None, n_test_trans=500, mode='train', 
-                 ac_chunk=1, cam_indexes=[0], past_frames=0):
+                 ac_chunk=1, cam_indexes=[0], past_frames=0, ac_dim=7):
         assert mode in ('train', 'test'), "Mode must be train/test"
         with open(buffer_path, 'rb') as f:
             buf = RB.load_traj_list(pkl.load(f))
@@ -149,5 +149,7 @@ class RobobufReplayBuffer(ReplayBuffer):
                     for i, cam_idx in enumerate(cam_indexes)}
             o_t = t.obs.state
             a_t = np.concatenate(chunked_actions, 0).astype(np.float32)
+            assert ac_dim == a_t.shape[-1]
+
             loss_mask = np.array(loss_mask, dtype=np.float32)
             self.s_a_mask.append(((i_t, o_t), a_t, loss_mask))
