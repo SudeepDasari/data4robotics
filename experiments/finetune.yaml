@@ -6,7 +6,7 @@
 
 defaults:
   - agent: default
-  - task: franka
+  - task: end_effector
   - trainer: bc
   - override hydra/launcher: slurm
   - _self_

@@ -6,7 +6,7 @@
 
 _target_: data4robotics.task.BCTask
 obs_dim: 7
-ac_dim: 10
+ac_dim: 7
 n_cams: ${len:${task.train_buffer.cam_indexes}}
 
 
