@@ -21,6 +21,14 @@ nice -n 19 python finetune.py agent=diffusion_unet exp_name=octo_baselines wandb
 
 Checkout `eval_ptr.py` and `eval_diffusion.py` respectively for reference eval scripts.
 
+Here is an example of `obs_config.yaml` (place in the checkpoint folder), used by the eval scripts
+```
+img: '26638268_left'
+transform:
+  _target_: data4robotics.transforms.get_transform_by_name
+  name: preproc
+```
+
 # An Unbiased Look at Datasets for Visuo-Motor Pre-Training
 [[Project Page]](https://data4robotics.github.io/)
 
