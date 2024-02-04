@@ -8,20 +8,24 @@ defaults:
   - features: vit_base
   - _self_
 
-_target_: data4robotics.models.diffusion.DiffusionAgent
+_target_: data4robotics.models.diffusion.DiffusionMLPAgent
 shared_mlp: []
 odim: ${task.obs_dim}
 n_cams: ${task.n_cams}
 use_obs: False
 dropout: 0.1
-diffusion_steps: 20
+train_diffusion_steps: 100
+eval_diffusion_steps: 16
 ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
+imgs_per_cam: ${img_chunk}
+share_cam_features: False
+feat_batch_norm: False
 
 noise_net_kwargs:
-  time_dim: 64
-  learnable_features: True
+  dropout: ${agent.dropout}
+  time_dim: 256
+  hidden_dim: 512
   num_blocks: 3
-  hidden_dim: 256
-  dropout_rate: ${agent.dropout}
   use_layer_norm: True
+  learnable_features: True

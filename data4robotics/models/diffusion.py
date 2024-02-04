@@ -8,7 +8,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from data4robotics.agent import Agent
-from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 
 
 class FourierFeatures(nn.Module):
@@ -71,7 +71,7 @@ class MLPResFILMBlock(nn.Module):
 
 class NoiseNetwork(nn.Module):
     def __init__(self, adim, ac_chunk, cond_dim, time_dim=32, learnable_features=True,
-                  num_blocks=3, hidden_dim=256, dropout_rate=0.1, 
+                  num_blocks=3, hidden_dim=256, dropout=0.1, 
                   use_layer_norm=True):
         super().__init__()
 
@@ -79,12 +79,14 @@ class NoiseNetwork(nn.Module):
                                       nn.Linear(time_dim, time_dim), nn.ReLU())
         in_dim = adim * ac_chunk + cond_dim + time_dim
         self.proj = nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.ReLU())
-        net = [MLPResFILMBlock(hidden_dim, in_dim, dropout_rate, use_layer_norm)
+        net = [MLPResFILMBlock(hidden_dim, in_dim, dropout, use_layer_norm)
                                                       for _ in range(num_blocks)]
         self.blocks = nn.ModuleList(net)
         self.out = nn.Linear(hidden_dim, adim * ac_chunk)
+
+        print("number of diffusion parameters: {:e}".format(sum(p.numel() for p in self.parameters())))
     
-    def forward(self, obs_enc, noise_ac_flat, time):
+    def forward(self, noise_ac_flat, time, obs_enc):
         time_enc = self.time_net(time)
         cond = torch.cat((noise_ac_flat, obs_enc, time_enc), -1)
         
@@ -97,56 +99,70 @@ class NoiseNetwork(nn.Module):
         return self.out(x)
 
 
-class DiffusionAgent(Agent):
+class DiffusionMLPAgent(Agent):
     def __init__(self, features, shared_mlp, odim, n_cams, use_obs, 
-                 ac_dim, ac_chunk, diffusion_steps, dropout=0,
-                 noise_net_kwargs=dict()):
+                 ac_dim, ac_chunk, train_diffusion_steps, eval_diffusion_steps,
+                 imgs_per_cam=1, dropout=0, share_cam_features=False, 
+                 feat_batch_norm=True, noise_net_kwargs=dict()):
         super().__init__(features, None, shared_mlp, odim, n_cams, 
-                         use_obs, dropout)
-
+                         use_obs, imgs_per_cam, dropout, share_cam_features,
+                         feat_batch_norm)
         self.noise_net = NoiseNetwork(adim=ac_dim, ac_chunk=ac_chunk, 
                                       cond_dim=self.obs_enc_dim,
                                       **noise_net_kwargs)
-        
         self._ac_dim, self._ac_chunk = ac_dim, ac_chunk
-        self._diffusion_steps = diffusion_steps
-        self.diffusion_schedule = DDPMScheduler(
-                                    num_train_timesteps=diffusion_steps,
+        
+        assert eval_diffusion_steps <= train_diffusion_steps, "Can't eval with more steps!"
+        self._train_diffusion_steps = train_diffusion_steps
+        self._eval_diffusion_steps = eval_diffusion_steps
+        self.diffusion_schedule = DDIMScheduler(
+                                    num_train_timesteps=train_diffusion_steps,
+                                    beta_start=0.0001,
+                                    beta_end=0.02,
                                     beta_schedule="squaredcos_cap_v2",
                                     clip_sample=True,
+                                    set_alpha_to_one=True,
+                                    steps_offset=0,
                                     prediction_type="epsilon"
                                     )
         
-    def forward(self, imgs, obs, flat_actions):
+    def forward(self, imgs, obs, actions, mask):
         # get observation encoding and sample noise/timesteps
-        B, device = imgs.shape[0], imgs.device
+        B, device = obs.shape[0], obs.device
         s_t = self._shared_forward(imgs, obs)
-        noise = torch.randn_like(flat_actions)
-        timesteps = torch.randint(low=0, high=self._diffusion_steps, size=(B,), 
+        timesteps = torch.randint(low=0, high=self._train_diffusion_steps, size=(B,), 
                                   device=device).long()
+        noise = torch.randn_like(actions)
 
         # construct noise actions given real actions, noise, and diffusion schedule
-        noise_acs = self.diffusion_schedule.add_noise(flat_actions, noise, timesteps)
-        noise_pred = self.noise_net(s_t, noise_acs, timesteps)
+        noise_acs = self.diffusion_schedule.add_noise(actions, noise, timesteps)
+        noise_pred = self.noise_net(noise_acs, timesteps, s_t)
         
         # calculate loss for noise net
-        loss = nn.functional.mse_loss(noise_pred, noise, reduction="none").sum(dim=1)
-        loss = loss.mean()
-        return loss
+        loss = nn.functional.mse_loss(noise_pred, noise, reduction="none")
+        loss = (loss * mask).sum(1)    # mask the loss to only consider "real" acs
+        return loss.mean()
 
-    def get_actions(self, imgs, obs):
+    def get_actions(self, imgs, obs, n_steps=None):
         # get observation encoding and sample noise
-        B, device = imgs.shape[0], imgs.device
+        B, device = obs.shape[0], obs.device
         s_t = self._shared_forward(imgs, obs)
-        noise_actions = torch.randn(B, self.ac_dim * self.ac_chunk, device=device)
+        noise_actions = torch.randn(B, self.ac_chunk * self.ac_dim, device=device)
 
+        # set number of steps
+        eval_steps = self._eval_diffusion_steps
+        if n_steps is not None:
+            assert n_steps <= self._train_diffusion_steps, \
+                  f"can't be > {self._train_diffusion_steps}"
+            eval_steps = n_steps
+        
         # begin diffusion process
-        self.diffusion_schedule.set_timesteps(self._diffusion_steps)
+        self.diffusion_schedule.set_timesteps(eval_steps)
         self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
-            time = timestep.unsqueeze(0).repeat(B).to(device)
-            noise_pred = self.noise_net(s_t, noise_actions, time)
+            batched_timestep = timestep.unsqueeze(0).repeat(B).to(device)
+            noise_pred = self.noise_net(noise_actions, batched_timestep, s_t)
 
             # take diffusion step
             noise_actions = self.diffusion_schedule.step(model_output=noise_pred, 
