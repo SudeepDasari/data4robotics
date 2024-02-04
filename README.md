@@ -17,6 +17,18 @@ nice -n 19 python finetune.py agent=diffusion_unet exp_name=octo_baselines wandb
 nice -n 19 python finetune.py agent=diffusion_unet exp_name=octo_baselines wandb.name=diffusion_multicam buffer_path=/path/to/abs_r6/buf.pkl max_iterations=500000  trainer=bc_cos_sched ac_chunk=16 train_transform=medium task.train_buffer.cam_indexes=[<front_cam_id>, <wrist_cam_id>] task.train_buffer.cam_indexes=[0,2] img_chunk=2
 ```
 
+# Eval Scripts
+
+Checkout `eval_ptr.py` and `eval_diffusion.py` respectively for reference eval scripts.
+
+Here is an example of `obs_config.yaml` (place in the checkpoint folder), used by the eval scripts
+```
+img: '26638268_left'
+transform:
+  _target_: data4robotics.transforms.get_transform_by_name
+  name: preproc
+```
+
 # An Unbiased Look at Datasets for Visuo-Motor Pre-Training
 [[Project Page]](https://data4robotics.github.io/)
 
