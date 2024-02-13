@@ -102,7 +102,7 @@ class BaselinePolicy:
             )
 
         # more recent predictions get exponentially *less* weight than older predictions
-        weights = np.exp(EXP_WEIGHT * np.arange(num_actions))
+        weights = np.exp(-EXP_WEIGHT * np.arange(num_actions))
         weights = weights / weights.sum()
         # compute the weighted average across all predictions for this timestep
         ac = np.sum(weights[:, None] * curr_act_preds, axis=0)
