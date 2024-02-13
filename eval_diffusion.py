@@ -18,7 +18,7 @@ from r2d2.robot_env import RobotEnv
 
 
 PRED_HORIZON = 16
-EXP_WEIGHT = 1
+EXP_WEIGHT = 0
 GRIP_THRESH = 0.55
 
 
