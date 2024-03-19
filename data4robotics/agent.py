@@ -47,8 +47,7 @@ class Agent(nn.Module):
         action_dist = self._policy(s_t)
         loss = -torch.mean(action_dist.masked_log_prob(ac_flat, mask_flat)) \
                if hasattr(action_dist, 'masked_log_prob') else \
-               -(action_dist.log_prob(ac_flat) * mask_flat).sum()
-        loss = loss / mask_flat.sum()
+               -(action_dist.log_prob(ac_flat) * mask_flat).sum() / mask_flat.sum()
         return loss
 
     def get_actions(self, img, obs, zero_std=True):
