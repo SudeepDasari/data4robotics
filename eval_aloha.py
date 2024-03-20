@@ -21,10 +21,10 @@ from aloha_pro.aloha_scripts.robot_utils import move_grippers
 from aloha_pro.aloha_scripts.constants import DT, PUPPET_GRIPPER_JOINT_OPEN
 
 
-PRED_HORIZON = 48
+PRED_HORIZON = 8
 EXP_WEIGHT = 0
 PERIOD = 1.0 / 30  # stop the policy from running faster than 30Hz
-GAMMA = 0.85
+GAMMA = .9
 
 
 class Policy:
@@ -42,8 +42,13 @@ class Policy:
             self.scale  = np.array(scale).astype(np.float32)
 
         agent = hydra.utils.instantiate(agent_config)
+
         save_dict = torch.load(Path(agent_path, model_name), map_location="cpu")
         agent.load_state_dict(save_dict['model'])
+
+        agent = torch.compile(agent)
+
+
         self.agent = agent.eval().cuda()
 
         self.transform = hydra.utils.instantiate(obs_config["transform"])
@@ -66,16 +71,23 @@ class Policy:
         return torch_imgs
     
     def _proc_state(self, qpos):
-        return torch.from_numpy(qpos)[None].cuda()
+        return torch.from_numpy(qpos).float()[None].cuda()
 
     def _infer_policy(self, obs):
+        import time
+        start = time.time()
         img = self._proc_images(obs['images'])
+        print('Image processing time:', time.time() - start)
+        start = time.time()
         state = self._proc_state(obs['qpos'])
+        print('State processing time:', time.time() - start)
 
+        start = time.time()
         with torch.no_grad():
             ac = self.agent.get_actions(img, state)
             ac = ac[0].cpu().numpy().astype(np.float32)[:PRED_HORIZON]
-        
+        print('Inference time:', time.time() - start)
+
         # make sure the model predicted enough steps
         assert len(ac) >= PRED_HORIZON, "model did not return enough predictions!"
         return ac
@@ -84,8 +96,11 @@ class Policy:
         ac = self._infer_policy(obs)
         self.act_history.append(ac)
 
+        # potentially consider not ensembling every timestep.
+
         # handle temporal blending
         num_actions = len(self.act_history)
+        print('Num actions:', num_actions)
         curr_act_preds = np.stack(
                 [
                     pred_actions[i]
@@ -111,10 +126,8 @@ class Policy:
         raw_ac =self.act_history.popleft()
         last_ac = self.last_ac if self.last_ac is not None \
                   else raw_ac
-        self.last_ac = raw_ac
-
-        # pop the oldest action
-        return GAMMA * raw_ac + (1 - GAMMA) * last_ac
+        self.last_ac = GAMMA * raw_ac + (1 - GAMMA) * last_ac
+        return self.last_ac.copy()
 
     def forward(self, obs):
         ac = self._forward_ensemble(obs) if self.temp_ensemble \
@@ -138,7 +151,8 @@ def main():
     parser.add_argument("checkpoint")
     parser.add_argument("--T", default=400)
     parser.add_argument("--temp_ensemble", default=False, action='store_true')
-    parser.add_argument("--num_rollouts", default=50)
+    parser.add_argument("--num_rollouts", default=1)
+
     args = parser.parse_args()
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
@@ -146,12 +160,19 @@ def main():
     policy = Policy(agent_path, model_name, args.temp_ensemble)
 
     env = make_real_env(init_node=True)
-    obs = env.reset()
-    
-    for _ in range(args.T):
-        ac = policy.forward(obs.observation)
-        obs = env.step(ac)
 
+
+    # Roll out the policy num_rollout times
+    for _ in range(args.num_rollouts):
+
+        obs = env.reset()
+        
+        for _ in range(args.T):
+            ac = policy.forward(obs.observation)
+            obs = env.step(ac)
+
+        # Reset gripper to let go of stuff
+        env._reset_gripper()
 
 if __name__ == "__main__":
     main()
