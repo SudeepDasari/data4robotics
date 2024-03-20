@@ -2,11 +2,13 @@ import argparse
 import json
 import os
 import sys
+import threading
 import time
 from collections import deque
 from pathlib import Path
 
 import cv2
+import h5py
 import hydra
 import numpy as np
 import torch
@@ -149,9 +151,16 @@ def main():
     parser.add_argument("--exp_weight", default=0, type=float)
     parser.add_argument("--hz", default=48, type=float)
     parser.add_argument("--gamma", default=0.85, type=float)
+    parser.add_argument("--save_dir", type=str, required=True)
 
     args = parser.parse_args()
     args.period = 1.0 / args.hz
+
+    if os.path.exists(args.save_dir):
+        # Don't allow overwriting save_dir by default
+        raise ValueError(f"Save directory {args.save_dir} already exists!")
+
+    os.makedirs(args.save_dir)
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
@@ -163,20 +172,74 @@ def main():
     for _ in range(args.num_rollouts):
 
         last_input = None
-        while last_input != 'y':
-            if last_input == 'r':
+        while last_input != "y":
+            if last_input == "r":
                 obs = env.reset()
             last_input = input("Continue with rollout (y; r to reset now)?")
-        
+
         policy.reset()
+
+        obs_data = []
+
         obs = env.reset()
+        obs_data.append(obs)
 
         for _ in range(args.T):
             ac = policy.forward(obs.observation)
             obs = env.step(ac)
+            obs_data.append(obs)
 
         # Reset gripper to let go of stuff
+        save_thread = threading.Thread(
+            target=save_obs, args=(obs_data, args.save_dir, policy.img_keys, args.pred_horizon)
+        )
+        save_thread.start()
+
         env._reset_gripper()
+
+
+def save_obs(obs, path, camera_names, max_timesteps):
+    print(path, camera_names, max_timesteps)
+    data_dict = {
+        "/observations/qpos": [],
+        "/observations/qvel": [],
+        "/observations/effort": [],
+    }
+    for cam_name in camera_names:
+        data_dict[f"/observations/images/{cam_name}"] = []
+
+    # len(action): max_timesteps, len(time_steps): max_timesteps + 1
+    while len(obs) > 1:
+        ts = obs.pop(0)
+        data_dict["/observations/qpos"].append(ts.observation["qpos"])
+        data_dict["/observations/qvel"].append(ts.observation["qvel"])
+        data_dict["/observations/effort"].append(ts.observation["effort"])
+        for cam_name in camera_names:
+            data_dict[f"/observations/images/{cam_name}"].append(ts.observation["images"][cam_name])
+
+    # HDF5
+    t0 = time.time()
+    with h5py.File(path + ".hdf5", "w", rdcc_nbytes=1024**2 * 2) as root:
+        root.attrs["sim"] = False
+        obs = root.create_group("observations")
+        image = obs.create_group("images")
+        for cam_name in camera_names:
+            _ = image.create_dataset(
+                cam_name,
+                (max_timesteps, 480, 640, 3),
+                dtype="uint8",
+                chunks=(1, 480, 640, 3),
+            )
+            # compression='gzip',compression_opts=2,)
+            # compression=32001, compression_opts=(0, 0, 0, 0, 9, 1, 1), shuffle=False)
+        _ = obs.create_dataset("qpos", (max_timesteps, 14))
+        _ = obs.create_dataset("qvel", (max_timesteps, 14))
+        _ = obs.create_dataset("effort", (max_timesteps, 14))
+
+        for name, array in data_dict.items():
+            root[name][...] = array
+    print(f"Saving: {time.time() - t0:.1f} secs")
+
 
 if __name__ == "__main__":
     main()
