@@ -169,7 +169,7 @@ def main():
     env = make_real_env(init_node=True)
 
     # Roll out the policy num_rollout times
-    for _ in range(args.num_rollouts):
+    for rollout_num in range(args.num_rollouts):
 
         last_input = None
         while last_input != "y":
@@ -190,9 +190,9 @@ def main():
             obs_data.append(obs)
 
         # Reset gripper to let go of stuff
-        save_thread = threading.Thread(
-            target=save_obs, args=(obs_data, args.save_dir, policy.img_keys, args.pred_horizon)
-        )
+        rollout_name = f"eval_episode_{rollout_num}"
+        save_path = os.path.join(args.save_dir, rollout_name)
+        save_thread = threading.Thread(target=save_obs, args=(obs_data, save_path, policy.img_keys, args.T))
         save_thread.start()
 
         env._reset_gripper()
