@@ -5,17 +5,17 @@
 
 
 defaults:
-  - features: vit_base
+  - features: robomimic
   - _self_
 
-_target_: data4robotics.models.diffusion.DiffusionMLPAgent
+_target_: data4robotics.models.diffusion.DiffusionTransformerAgent
 shared_mlp: []
 odim: ${task.obs_dim}
 n_cams: ${task.n_cams}
 use_obs: False
 dropout: 0.1
 train_diffusion_steps: 100
-eval_diffusion_steps: 16
+eval_diffusion_steps: 8
 ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
 imgs_per_cam: ${img_chunk}
@@ -26,6 +26,5 @@ noise_net_kwargs:
   dropout: ${agent.dropout}
   time_dim: 256
   hidden_dim: 512
-  num_blocks: 3
-  use_layer_norm: True
+  num_blocks: 6
   learnable_features: True
