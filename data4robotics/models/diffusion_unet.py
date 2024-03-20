@@ -330,12 +330,9 @@ class DiffusionUnetAgent(Agent):
         return loss.mean()
 
     def get_actions(self, imgs, obs, n_steps=None):
-        import time
         # get observation encoding and sample noise
         B, device = obs.shape[0], obs.device
-        start = time.time()
         s_t = self._shared_forward(imgs, obs)
-        print('state proc', time.time() - start)
         noise_actions = torch.randn(B, self.ac_chunk, self.ac_dim, device=device)
 
         # set number of steps
@@ -346,12 +343,10 @@ class DiffusionUnetAgent(Agent):
             eval_steps = n_steps
         
         # begin diffusion process
-        
         self.diffusion_schedule.set_timesteps(eval_steps)
         self.diffusion_schedule.alphas_cumprod = self.diffusion_schedule.alphas_cumprod.to(device)
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
-            start = time.time()
             batched_timestep = timestep.unsqueeze(0).repeat(B).to(device)
             noise_pred = self.noise_net(noise_actions, batched_timestep, s_t)
 
@@ -359,7 +354,6 @@ class DiffusionUnetAgent(Agent):
             noise_actions = self.diffusion_schedule.step(model_output=noise_pred, 
                                                 timestep=timestep, 
                                                 sample=noise_actions).prev_sample
-            print('diffusion step', timestep, 'time', time.time() - start)
 
         # return final action post diffusion
         return noise_actions
