@@ -20,11 +20,6 @@ from aloha_pro.aloha_scripts.constants import DT, PUPPET_GRIPPER_JOINT_OPEN
 from aloha_pro.aloha_scripts.real_env import make_real_env
 from aloha_pro.aloha_scripts.robot_utils import move_grippers
 
-# PRED_HORIZON = 8
-# EXP_WEIGHT = 0
-# PERIOD = 1.0 / 30  # stop the policy from running faster than 30Hz
-# GAMMA = 0.9
-
 
 class Policy:
     def __init__(self, agent_path, model_name, args):
@@ -55,9 +50,13 @@ class Policy:
         self.img_keys = obs_config["imgs"]
 
         print(f"loaded agent from {agent_path}, at step: {save_dict['global_step']}")
-        self.act_history = deque(maxlen=args.pred_horizon)
-        self.last_ac = None
         self.temp_ensemble = args.temp_ensemble
+        self.pred_horizon = args.pred_horizon
+        self.reset()
+
+    def reset(self):
+        self.act_history = deque(maxlen=self.pred_horizon)
+        self.last_ac = None
         self._last_time = None
 
     def _proc_images(self, img_dict, size=(256, 256)):
@@ -143,15 +142,16 @@ class Policy:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("checkpoint")
-    parser.add_argument("--T", default=400)
+    parser.add_argument("--T", default=400, type=int)
     parser.add_argument("--temp_ensemble", default=False, action="store_true")
-    parser.add_argument("--num_rollouts", default=1)
-    parser.add_argument("--pred_horizon", default=48)
-    parser.add_argument("--exp_weight", default=0.0)
-    parser.add_argument("--period", default=1.0 / 30)
-    parser.add_argument("--gamma", default=0.85)
+    parser.add_argument("--num_rollouts", default=1, type=int)
+    parser.add_argument("--pred_horizon", default=48, type=int)
+    parser.add_argument("--exp_weight", default=-0.25, type=float)
+    parser.add_argument("--hz", default=48, type=float)
+    parser.add_argument("--gamma", default=0.85, type=float)
 
     args = parser.parse_args()
+    args.period = 1.0 / args.hz
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
@@ -162,6 +162,13 @@ def main():
     # Roll out the policy num_rollout times
     for _ in range(args.num_rollouts):
 
+        last_input = None
+        while last_input != 'y':
+            if last_input == 'r':
+                obs = env.reset()
+            last_input = input("Continue with rollout (y; r to reset now)?")
+        
+        policy.reset()
         obs = env.reset()
 
         for _ in range(args.T):
@@ -170,7 +177,6 @@ def main():
 
         # Reset gripper to let go of stuff
         env._reset_gripper()
-
 
 if __name__ == "__main__":
     main()
