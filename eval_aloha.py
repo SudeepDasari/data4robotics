@@ -146,7 +146,7 @@ def main():
     parser.add_argument("--temp_ensemble", default=False, action="store_true")
     parser.add_argument("--num_rollouts", default=1, type=int)
     parser.add_argument("--pred_horizon", default=48, type=int)
-    parser.add_argument("--exp_weight", default=-0.25, type=float)
+    parser.add_argument("--exp_weight", default=0, type=float)
     parser.add_argument("--hz", default=48, type=float)
     parser.add_argument("--gamma", default=0.85, type=float)
 
