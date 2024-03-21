@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -166,8 +167,10 @@ def main():
 
     env = make_real_env(init_node=True)
 
+    next_highest = get_highest_rollout_num(args.save_dir) + 1
+
     # Roll out the policy num_rollout times
-    for rollout_num in range(args.num_rollouts):
+    for rollout_num in range(next_highest, args.num_rollouts + next_highest):
 
         last_input = None
         while last_input != "y":
@@ -192,14 +195,22 @@ def main():
 
         # Reset gripper to let go of stuff
         # FIXME: Add in find highest rollout_num from existing dir.
-        rollout_name = f"episode_{rollout_num}"
-        save_path = os.path.join(args.save_dir, rollout_name, ".mp4")
+        rollout_name = f"episode_{rollout_num}.mp4"
+        save_path = os.path.join(args.save_dir, rollout_name)
         save_thread = threading.Thread(
             target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
         )
         save_thread.start()
 
         env._reset_gripper()
+
+
+def get_highest_rollout_num(save_dir):
+    if not os.path.exists(save_dir):
+        raise ValueError(f"Directory {save_dir} does not exist.")
+
+    files = [os.path.basename(f) for f in os.listdir(save_dir) if os.path.isfile(f)]
+    return max([int(re.match(r"\d+", f)) for f in files])
 
 
 def save_rollout_video(obs, path, camera_names, length_of_episode):
@@ -220,19 +231,21 @@ def save_rollout_video(obs, path, camera_names, length_of_episode):
             image_dict[cam_name].append(ts.observation["images"][cam_name])
 
     cam_names = list(image_dict.keys())
+
     all_cam_videos = []
     for cam_name in cam_names:
         all_cam_videos.append(image_dict[cam_name])
     all_cam_videos = np.concatenate(all_cam_videos, axis=2)  # width dimension
 
     n_frames, h, w, _ = all_cam_videos.shape
-    fps = int(n_frames / length_of_episode)
-    print(fps)  # FIXME: This doesn't excatly align with effective hertz. Look into this.
+    fps = int(
+        n_frames / length_of_episode
+    )  # This is an estimate, but the frames are not uniformly distributed when rolling out the policy.
 
     out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
     for t in range(n_frames):
         image = all_cam_videos[t]
-        image = image[:, :, [2, 1, 0]]  # swap B and R channel
+        image = image[:, :, [0, 1, 2]]
         out.write(image)
     out.release()
 
