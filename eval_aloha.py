@@ -191,10 +191,11 @@ def main():
         end_time = time.time()
 
         # Reset gripper to let go of stuff
+        # FIXME: Add in find highest rollout_num from existing dir.
         rollout_name = f"episode_{rollout_num}"
         save_path = os.path.join(args.save_dir, rollout_name)
         save_thread = threading.Thread(
-            target=save_rollout_video, args=(obs, save_path, policy.img_keys, end_time - start_time)
+            target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
         )
         save_thread.start()
 
