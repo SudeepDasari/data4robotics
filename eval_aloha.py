@@ -209,10 +209,10 @@ def get_highest_rollout_num(save_dir):
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
 
-    files = [f for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f))]
+    files = [os.path.basename(f) for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f))]
     if not files:
         return -1  # No files yet
-    return max([int(re.match(r"\d+", os.path.basename(f))) for f in files])
+    return max([int(re.search(r"\d+", f_name)[0]) for f_name in files])
 
 
 def save_rollout_video(obs, path, camera_names, length_of_episode):
