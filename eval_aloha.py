@@ -180,40 +180,44 @@ def main():
         policy.reset()
 
         obs_data = []
+        actions = []
 
         obs = env.reset()
         obs_data.append(obs)
 
         for _ in range(args.T):
             ac = policy.forward(obs.observation)
+            actions.append(ac)
             obs = env.step(ac)
             obs_data.append(obs)
 
         # Reset gripper to let go of stuff
-        rollout_name = f"eval_episode_{rollout_num}"
+        rollout_name = f"episode_{rollout_num}"
         save_path = os.path.join(args.save_dir, rollout_name)
-        save_thread = threading.Thread(target=save_obs, args=(obs_data, save_path, policy.img_keys, args.T))
+        save_thread = threading.Thread(target=save_obs, args=(obs_data, actions, save_path, policy.img_keys, args.T))
         save_thread.start()
 
         env._reset_gripper()
 
 
-def save_obs(obs, path, camera_names, max_timesteps):
-    print(path, camera_names, max_timesteps)
+def save_obs(obs, actions, path, camera_names, max_timesteps):
     data_dict = {
         "/observations/qpos": [],
         "/observations/qvel": [],
         "/observations/effort": [],
+        "/action": [],
     }
     for cam_name in camera_names:
         data_dict[f"/observations/images/{cam_name}"] = []
 
     # len(action): max_timesteps, len(time_steps): max_timesteps + 1
-    while len(obs) > 1:
+    while actions:
+        action = actions.pop(0)
         ts = obs.pop(0)
         data_dict["/observations/qpos"].append(ts.observation["qpos"])
         data_dict["/observations/qvel"].append(ts.observation["qvel"])
         data_dict["/observations/effort"].append(ts.observation["effort"])
+        data_dict["/action"].append(action)
         for cam_name in camera_names:
             data_dict[f"/observations/images/{cam_name}"].append(ts.observation["images"][cam_name])
 
@@ -235,6 +239,7 @@ def save_obs(obs, path, camera_names, max_timesteps):
         _ = obs.create_dataset("qpos", (max_timesteps, 14))
         _ = obs.create_dataset("qvel", (max_timesteps, 14))
         _ = obs.create_dataset("effort", (max_timesteps, 14))
+        _ = root.create_dataset("action", (max_timesteps, 14))
 
         for name, array in data_dict.items():
             root[name][...] = array
