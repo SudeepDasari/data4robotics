@@ -193,7 +193,7 @@ def main():
         # Reset gripper to let go of stuff
         # FIXME: Add in find highest rollout_num from existing dir.
         rollout_name = f"episode_{rollout_num}"
-        save_path = os.path.join(args.save_dir, rollout_name)
+        save_path = os.path.join(args.save_dir, rollout_name, ".mp4")
         save_thread = threading.Thread(
             target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
         )
@@ -227,7 +227,7 @@ def save_rollout_video(obs, path, camera_names, length_of_episode):
 
     n_frames, h, w, _ = all_cam_videos.shape
     fps = int(n_frames / length_of_episode)
-    print(fps)
+    print(fps)  # FIXME: This doesn't excatly align with effective hertz. Look into this.
 
     out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
     for t in range(n_frames):
