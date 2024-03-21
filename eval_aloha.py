@@ -15,6 +15,7 @@ import torch
 import yaml
 
 # aloha imports
+DT = 0.02
 
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
@@ -156,11 +157,8 @@ def main():
     args = parser.parse_args()
     args.period = 1.0 / args.hz
 
-    if os.path.exists(args.save_dir):
-        # Don't allow overwriting save_dir by default
-        raise ValueError(f"Save directory {args.save_dir} already exists!")
-
-    os.makedirs(args.save_dir)
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
@@ -180,69 +178,63 @@ def main():
         policy.reset()
 
         obs_data = []
-        actions = []
 
         obs = env.reset()
+        start_time = time.time()
         obs_data.append(obs)
 
         for _ in range(args.T):
             ac = policy.forward(obs.observation)
-            actions.append(ac)
             obs = env.step(ac)
             obs_data.append(obs)
+
+        end_time = time.time()
 
         # Reset gripper to let go of stuff
         rollout_name = f"episode_{rollout_num}"
         save_path = os.path.join(args.save_dir, rollout_name)
-        save_thread = threading.Thread(target=save_obs, args=(obs_data, actions, save_path, policy.img_keys, args.T))
+        save_thread = threading.Thread(
+            target=save_rollout_video, args=(obs, save_path, policy.img_keys, end_time - start_time)
+        )
         save_thread.start()
 
         env._reset_gripper()
 
 
-def save_obs(obs, actions, path, camera_names, max_timesteps):
-    data_dict = {
-        "/observations/qpos": [],
-        "/observations/qvel": [],
-        "/observations/effort": [],
-        "/action": [],
-    }
+def save_rollout_video(obs, path, camera_names, length_of_episode):
+    t0 = time.time()
+
+    cam_names = ["cam_high", "cam_low", "cam_left_wrist", "cam_right_wrist"]
+
+    # Get the list
+    image_dict = {}
+
     for cam_name in camera_names:
-        data_dict[f"/observations/images/{cam_name}"] = []
+        image_dict[cam_name] = []
 
     # len(action): max_timesteps, len(time_steps): max_timesteps + 1
-    while actions:
-        action = actions.pop(0)
+    while len(obs) > 1:
         ts = obs.pop(0)
-        data_dict["/observations/qpos"].append(ts.observation["qpos"])
-        data_dict["/observations/qvel"].append(ts.observation["qvel"])
-        data_dict["/observations/effort"].append(ts.observation["effort"])
-        data_dict["/action"].append(action)
         for cam_name in camera_names:
-            data_dict[f"/observations/images/{cam_name}"].append(ts.observation["images"][cam_name])
+            image_dict[cam_name].append(ts.observation["images"][cam_name])
 
-    # HDF5
-    t0 = time.time()
-    with h5py.File(path + ".hdf5", "w", rdcc_nbytes=1024**2 * 2) as root:
-        root.attrs["sim"] = False
-        obs = root.create_group("observations")
-        image = obs.create_group("images")
-        for cam_name in camera_names:
-            _ = image.create_dataset(
-                cam_name,
-                (max_timesteps, 480, 640, 3),
-                dtype="uint8",
-                chunks=(1, 480, 640, 3),
-            )
-            # compression='gzip',compression_opts=2,)
-            # compression=32001, compression_opts=(0, 0, 0, 0, 9, 1, 1), shuffle=False)
-        _ = obs.create_dataset("qpos", (max_timesteps, 14))
-        _ = obs.create_dataset("qvel", (max_timesteps, 14))
-        _ = obs.create_dataset("effort", (max_timesteps, 14))
-        _ = root.create_dataset("action", (max_timesteps, 14))
+    cam_names = list(image_dict.keys())
+    all_cam_videos = []
+    for cam_name in cam_names:
+        all_cam_videos.append(image_dict[cam_name])
+    all_cam_videos = np.concatenate(all_cam_videos, axis=2)  # width dimension
 
-        for name, array in data_dict.items():
-            root[name][...] = array
+    n_frames, h, w, _ = all_cam_videos.shape
+    fps = int(n_frames / length_of_episode)
+    print(fps)
+
+    out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    for t in range(n_frames):
+        image = all_cam_videos[t]
+        image = image[:, :, [2, 1, 0]]  # swap B and R channel
+        out.write(image)
+    out.release()
+
     print(f"Saving: {time.time() - t0:.1f} secs")
 
 
