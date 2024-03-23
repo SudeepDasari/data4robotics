@@ -25,12 +25,8 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         self, global_pool=False, use_cls=True, mask_ratio=None, del_head=True, **kwargs
     ):
         super(VisionTransformer, self).__init__(**kwargs)
-        if global_pool:
-            self.classifier_feature = "global_pool"
-        elif use_cls:
-            self.classifier_feature = "use_cls_token"
-        else:
-            self.classifier_feature = "reshape_embedding"
+        assert use_cls and not global_pool, "token counting only works for use_cls mode"
+        self.classifier_feature = "use_cls_token"
 
         if del_head:
             del self.head  # don't use prediction head
@@ -87,7 +83,7 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
             outcome = self.fc_norm(x)
         elif self.classifier_feature == "use_cls_token":
             x = self.norm(x)
-            outcome = x[:, 0]  # use cls token
+            outcome = x[:, :1]  # use cls token
         elif self.classifier_feature == "reshape_embedding":
             x = self.norm(x)
             outcome = reshape_embedding(
@@ -118,6 +114,11 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
 
     def forward(self, x):
         return self.forward_features(x)
+
+    @property
+    def n_tokens(self):
+        # hard-coded assuming use_cls_token
+        return 1
 
 
 class ClipVisionTransformer(VisionTransformer):

@@ -7,7 +7,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
-from data4robotics.agent import Agent
+from data4robotics.agent import BaseAgent
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 
 
@@ -80,12 +80,12 @@ class TransformerBlock(nn.Module):
 
 
 class NoiseNetwork(nn.Module):
-    def __init__(self, ac_dim, obs_dim, ac_chunk, time_dim=256, hidden_dim=512,
+    def __init__(self, ac_dim, global_cond_dim, ac_chunk, time_dim=256, hidden_dim=512,
                   num_blocks=3, dropout=0.1, learnable_features=True):
         super().__init__()
 
         # input encoder mlps
-        cond_dim = obs_dim + time_dim
+        cond_dim = global_cond_dim + time_dim
         self.time_net = nn.Sequential(FourierFeatures(time_dim, learnable_features),
                                       nn.Linear(time_dim, time_dim), nn.ReLU())
         self.pos_enc = PositionalEncoding(hidden_dim, dropout=dropout)
@@ -127,16 +127,25 @@ class NoiseNetwork(nn.Module):
         return self.eps_out(ac_tokens)
 
 
-class DiffusionTransformerAgent(Agent):
-    def __init__(self, features, shared_mlp, odim, n_cams, use_obs, 
-                 ac_dim, ac_chunk, train_diffusion_steps, eval_diffusion_steps,
+class DiffusionTransformerAgent(BaseAgent):
+    def __init__(self, features, odim, n_cams, use_obs, ac_dim, ac_chunk,
+                 train_diffusion_steps, eval_diffusion_steps,
                  imgs_per_cam=1, dropout=0, share_cam_features=False, 
-                 feat_batch_norm=True, noise_net_kwargs=dict()):
-        super().__init__(features, None, shared_mlp, odim, n_cams, 
-                         use_obs, imgs_per_cam, dropout, share_cam_features,
-                         feat_batch_norm)
+                 feat_norm=None, noise_net_kwargs=dict()):
+        
+        # initialize obs and img tokenizers
+        super().__init__(odim=odim,
+                            features=features,
+                            n_cams=n_cams,
+                            imgs_per_cam=imgs_per_cam,
+                            use_obs=use_obs,
+                            share_cam_features=share_cam_features,
+                            dropout=dropout,
+                            feat_norm=feat_norm)
+        
+        cond_dim = self.n_tokens * self.token_dim
         self.noise_net = NoiseNetwork(ac_dim=ac_dim, ac_chunk=ac_chunk,
-                                      obs_dim=self.obs_enc_dim,
+                                      global_cond_dim=cond_dim,
                                       **noise_net_kwargs)
         self._ac_dim, self._ac_chunk = ac_dim, ac_chunk
         
@@ -157,7 +166,7 @@ class DiffusionTransformerAgent(Agent):
     def forward(self, imgs, obs, ac_flat, mask_flat):
         # get observation encoding and sample noise/timesteps
         B, device = obs.shape[0], obs.device
-        s_t = self._shared_forward(imgs, obs)
+        s_t = self.tokenize_obs(imgs, obs, flatten=True)
         timesteps = torch.randint(low=0, high=self._train_diffusion_steps, size=(B,), 
                                   device=device).long()
 
@@ -178,7 +187,7 @@ class DiffusionTransformerAgent(Agent):
     def get_actions(self, imgs, obs, n_steps=None):
         # get observation encoding and sample noise
         B, device = obs.shape[0], obs.device
-        s_t = self._shared_forward(imgs, obs)
+        s_t = self.tokenize_obs(imgs, obs, flatten=True)
         noise_actions = torch.randn(B, self.ac_chunk, self.ac_dim, device=device)
 
         # set number of steps

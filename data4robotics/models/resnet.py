@@ -47,26 +47,42 @@ def _construct_resnet(size, norm, weights=None):
 
 
 class ResNet(BaseModel):
-    def __init__(self, size, norm_cfg, weights=None, restore_path=''):
+    def __init__(self, size, norm_cfg, weights=None, restore_path='', avg_pool=True):
         norm_layer = _make_norm(norm_cfg)
         model = _construct_resnet(size, norm_layer, weights)
         model.fc = nn.Identity()
+        if not avg_pool:
+            model.avgpool = nn.Identity()
+        
         super().__init__(model, restore_path)
-        self._size = size
+        self._size, self._avg_pool = size, avg_pool
 
     def forward(self, x):
-        return self._model(x)
+        if self._avg_pool:
+            return self._model(x)[:, None]
+        B = x.shape[0]
+        x = self._model(x)
+        x = x.reshape((B, self.embed_dim, -1))
+        return x.transpose(1, 2)
 
     @property
     def embed_dim(self):
         return {18: 512, 34: 512, 50: 2048}[self._size]
 
+    @property
+    def n_tokens(self):
+        if self._avg_pool:
+            return 1
+        return 49  # assuming 224x224 images
+
 
 class R3M(ResNet):
-    def __init__(self, size):
+    def __init__(self, size, avg_pool=True):
         nn.Module.__init__(self)
         self._model = load_r3m(f'resnet{size}').module.convnet.cpu()
-        self._size = size
+        if not avg_pool:
+            self._model.avgpool = nn.Identity()
+        self._size, self._avg_pool = size, avg_pool
 
 
 class SpatialSoftmax(nn.Module):
@@ -207,7 +223,7 @@ class RobomimicResNet(nn.Module):
         x = self.spatial_softmax(x)
         x = self.flatten(x)
         x = self.proj(x)
-        return x
+        return x[:,None]
     
     @property
     def embed_dim(self):
