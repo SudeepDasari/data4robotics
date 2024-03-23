@@ -6,7 +6,4 @@
 
 from setuptools import setup
 
-setup(name="data4robotics", 
-      packages=["data4robotics"], 
-      version="0.1"
-)
+setup(name="data4robotics", packages=["data4robotics"], version="0.1")

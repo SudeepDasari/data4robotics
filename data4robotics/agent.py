@@ -4,7 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch, copy
+import copy
+
+import torch
 from torch import nn
 
 
@@ -18,8 +20,17 @@ class _BatchNorm1DHelper(nn.BatchNorm1d):
 
 
 class BaseAgent(nn.Module):
-    def __init__(self, odim, features, n_cams, imgs_per_cam, use_obs=False,
-                 share_cam_features=False, dropout=0, feat_norm=None):
+    def __init__(
+        self,
+        odim,
+        features,
+        n_cams,
+        imgs_per_cam,
+        use_obs=False,
+        share_cam_features=False,
+        dropout=0,
+        feat_norm=None,
+    ):
         super().__init__()
 
         # store visual features (duplicate weights if shared)
@@ -27,21 +38,21 @@ class BaseAgent(nn.Module):
         if self._share_cam_features:
             self.visual_features = features
         else:
-            feat_list = [features] + [copy.deepcopy(features) \
-                                      for _ in range(1, n_cams)]
+            feat_list = [features] + [copy.deepcopy(features) for _ in range(1, n_cams)]
             self.visual_features = nn.ModuleList(feat_list)
 
         self._token_dim = features.embed_dim
         self._n_tokens = imgs_per_cam * n_cams * features.n_tokens
 
         # handle obs tokenization strategies
-        if use_obs == 'add_token':
-            self._obs_strat = 'add_token'
+        if use_obs == "add_token":
+            self._obs_strat = "add_token"
             self._n_tokens += 1
-            self._obs_proc = nn.Sequential(nn.Dropout(p=0.2),
-                                           nn.Linear(odim, self._token_dim))
-        elif use_obs == 'pad_img_tokens':
-            self._obs_strat = 'pad_img_tokens'
+            self._obs_proc = nn.Sequential(
+                nn.Dropout(p=0.2), nn.Linear(odim, self._token_dim)
+            )
+        elif use_obs == "pad_img_tokens":
+            self._obs_strat = "pad_img_tokens"
             self._token_dim += odim
             self._obs_proc = nn.Dropout(p=0.2)
         else:
@@ -49,9 +60,9 @@ class BaseAgent(nn.Module):
             self._obs_strat = None
 
         # build feature normalization layers
-        if feat_norm == 'batch_norm':
+        if feat_norm == "batch_norm":
             norm = _BatchNorm1DHelper(self._token_dim)
-        elif feat_norm == 'layer_norm':
+        elif feat_norm == "layer_norm":
             norm = nn.LayerNorm(self._token_dim)
         else:
             assert feat_norm is None
@@ -62,17 +73,17 @@ class BaseAgent(nn.Module):
 
     def get_actions(self, img, obs):
         raise NotImplementedError
-    
+
     def tokenize_obs(self, imgs, obs, flatten=False):
         # start by getting image tokens
         tokens = self.embed(imgs)
-        
-        if self._obs_strat == 'add_token':
+
+        if self._obs_strat == "add_token":
             obs_token = self._obs_proc(obs)
             tokens = torch.cat((tokens, obs_token), 1)
-        elif self._obs_strat == 'pad_img_tokens':
+        elif self._obs_strat == "pad_img_tokens":
             obs = self._obs_proc(obs)
-            obs = obs[:,None].repeat((1, tokens.shape[1], 1))
+            obs = obs[:, None].repeat((1, tokens.shape[1], 1))
             tokens = torch.cat((obs, tokens), 2)
         else:
             assert self._obs_strat is None
@@ -81,7 +92,7 @@ class BaseAgent(nn.Module):
         if flatten:
             return tokens.reshape((tokens.shape[0], -1))
         return tokens
-    
+
     def embed(self, imgs):
         def embed_helper(net, im):
             if len(im.shape) == 5:
@@ -90,15 +101,19 @@ class BaseAgent(nn.Module):
                 embeds = embeds.reshape((B, -1, net.embed_dim))
                 return embeds
             return net(im)
-        
+
         if self._share_cam_features:
-            embeds = [embed_helper(self.visual_features, imgs[f'cam{i}']) \
-                      for i in range(self._n_cams)]
+            embeds = [
+                embed_helper(self.visual_features, imgs[f"cam{i}"])
+                for i in range(self._n_cams)
+            ]
         else:
-            embeds = [embed_helper(net, imgs[f'cam{i}']) \
-                      for i, net in enumerate(self.visual_features)]
+            embeds = [
+                embed_helper(net, imgs[f"cam{i}"])
+                for i, net in enumerate(self.visual_features)
+            ]
         return torch.cat(embeds, dim=1)
-    
+
     @property
     def n_cams(self):
         return self._n_cams
@@ -110,51 +125,65 @@ class BaseAgent(nn.Module):
     @property
     def token_dim(self):
         return self._token_dim
-    
+
     @property
     def n_tokens(self):
         return self._n_tokens
 
 
 class MLPAgent(BaseAgent):
-    def __init__(self, features, policy, shared_mlp, odim, 
-                        n_cams, use_obs, imgs_per_cam=1, dropout=0, 
-                        share_cam_features=False, feat_norm='layer_norm'):
-            
-            # initialize obs and img tokenizers
-            super().__init__(odim=odim,
-                             features=features,
-                             n_cams=n_cams,
-                             imgs_per_cam=imgs_per_cam,
-                             use_obs=use_obs,
-                             share_cam_features=share_cam_features,
-                             dropout=dropout,
-                             feat_norm=feat_norm)
+    def __init__(
+        self,
+        features,
+        policy,
+        shared_mlp,
+        odim,
+        n_cams,
+        use_obs,
+        imgs_per_cam=1,
+        dropout=0,
+        share_cam_features=False,
+        feat_norm="layer_norm",
+    ):
 
-            # assign policy class
-            self._policy = policy
+        # initialize obs and img tokenizers
+        super().__init__(
+            odim=odim,
+            features=features,
+            n_cams=n_cams,
+            imgs_per_cam=imgs_per_cam,
+            use_obs=use_obs,
+            share_cam_features=share_cam_features,
+            dropout=dropout,
+            feat_norm=feat_norm,
+        )
 
-            mlp_in = self.n_tokens * self.token_dim
-            mlp_def = [mlp_in] + shared_mlp
-            layers = []
-            for i, o in zip(mlp_def[:-1], mlp_def[1:]):
-                layers.append(nn.Linear(i, o))
-                layers.append(nn.ReLU())
-                layers.append(nn.Dropout(dropout))
-            self._mlp = nn.Sequential(*layers)
+        # assign policy class
+        self._policy = policy
+
+        mlp_in = self.n_tokens * self.token_dim
+        mlp_def = [mlp_in] + shared_mlp
+        layers = []
+        for i, o in zip(mlp_def[:-1], mlp_def[1:]):
+            layers.append(nn.Linear(i, o))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
+        self._mlp = nn.Sequential(*layers)
 
     def forward(self, imgs, obs, ac_flat, mask_flat):
         s_t = self._mlp_forward(imgs, obs)
         action_dist = self._policy(s_t)
-        loss = -torch.mean(action_dist.masked_log_prob(ac_flat, mask_flat)) \
-            if hasattr(action_dist, 'masked_log_prob') else \
-            -(action_dist.log_prob(ac_flat) * mask_flat).sum() / mask_flat.sum()
+        loss = (
+            -torch.mean(action_dist.masked_log_prob(ac_flat, mask_flat))
+            if hasattr(action_dist, "masked_log_prob")
+            else -(action_dist.log_prob(ac_flat) * mask_flat).sum() / mask_flat.sum()
+        )
         return loss
 
     def get_actions(self, img, obs, zero_std=True):
         policy_in = self._mlp_forward(img, obs)
         return self._policy.get_actions(policy_in, zero_std=zero_std)
-    
+
     def _mlp_forward(self, imgs, obs):
         tokens_flat = self.tokenize_obs(imgs, obs, flatten=True)
         return self._shared_mlp(tokens_flat)

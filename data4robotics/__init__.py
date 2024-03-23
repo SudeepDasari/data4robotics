@@ -4,5 +4,4 @@
 # LICENSE file in the root directory of this source tree.
 
 
-from .load_pretrained import load_vit
-from .load_pretrained import load_resnet18
+from .load_pretrained import load_resnet18, load_vit

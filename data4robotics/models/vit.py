@@ -11,10 +11,12 @@
 # Modified by Sudeep Dasari
 
 
-import os, torch
-import torch.nn as nn
-import timm.models.vision_transformer
+import os
 from functools import partial
+
+import timm.models.vision_transformer
+import torch
+import torch.nn as nn
 from timm.models.vision_transformer import resize_pos_embed
 
 
@@ -158,7 +160,7 @@ def vit_small_patch16(**kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs
+        **kwargs,
     )
     return model
 
@@ -172,7 +174,7 @@ def vit_base_patch16(**kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs
+        **kwargs,
     )
     return model
 
@@ -189,7 +191,7 @@ def clip_vit_base_patch16(**kwargs):
         # CLIP-specific:
         pre_norm=True,
         num_classes=512,
-        **kwargs
+        **kwargs,
     )
     return model
 
@@ -203,7 +205,7 @@ def vit_large_patch16(**kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs
+        **kwargs,
     )
     return model
 
@@ -217,21 +219,24 @@ def vit_huge_patch14(**kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs
+        **kwargs,
     )
     return model
 
 
 def load_vit(model, restore_path):
     if restore_path:
-        print('Restoring model from', restore_path)
-        state_dict = torch.load(restore_path, map_location='cpu')
-        state_dict = state_dict['features'] if 'features' in state_dict \
-                     else state_dict['model']
+        print("Restoring model from", restore_path)
+        state_dict = torch.load(restore_path, map_location="cpu")
+        state_dict = (
+            state_dict["features"] if "features" in state_dict else state_dict["model"]
+        )
 
         # resize pos_embed if required
         if state_dict["pos_embed"].shape != model.pos_embed.shape:
-            print(f"resizing pos_embed from {state_dict['pos_embed'].shape} to {model.pos_embed.shape}")
+            print(
+                f"resizing pos_embed from {state_dict['pos_embed'].shape} to {model.pos_embed.shape}"
+            )
             state_dict["pos_embed"] = resize_pos_embed(
                 state_dict["pos_embed"],
                 model.pos_embed,
@@ -250,7 +255,9 @@ def load_vit(model, restore_path):
         if model.classifier_feature == "global_pool":
             print("Removing extra weights for global_pool")
             # remove layer that start with norm
-            state_dict = {k: v for k, v in state_dict.items() if not k.startswith("norm")}
+            state_dict = {
+                k: v for k, v in state_dict.items() if not k.startswith("norm")
+            }
             # add fc_norm in the state dict from the model
             state_dict["fc_norm.weight"] = model.fc_norm.weight
             state_dict["fc_norm.bias"] = model.fc_norm.bias
