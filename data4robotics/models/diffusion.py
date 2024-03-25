@@ -7,8 +7,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from data4robotics.agent import BaseAgent
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
+
+from data4robotics.agent import BaseAgent
 
 
 class PositionalEncoding(nn.Module):
@@ -160,6 +161,7 @@ class DiffusionTransformerAgent(BaseAgent):
         dropout=0,
         share_cam_features=False,
         feat_norm=None,
+        token_dim=None,
         noise_net_kwargs=dict(),
     ):
 
@@ -173,6 +175,7 @@ class DiffusionTransformerAgent(BaseAgent):
             share_cam_features=share_cam_features,
             dropout=dropout,
             feat_norm=feat_norm,
+            token_dim=token_dim,
         )
 
         cond_dim = self.n_tokens * self.token_dim

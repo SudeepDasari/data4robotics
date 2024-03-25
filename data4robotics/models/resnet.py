@@ -9,9 +9,10 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from data4robotics.models.base import BaseModel
 from r3m import load_r3m
 from torchvision import models
+
+from data4robotics.models.base import BaseModel
 
 
 def _make_norm(norm_cfg):
@@ -21,7 +22,12 @@ def _make_norm(norm_cfg):
         num_groups = norm_cfg["num_groups"]
         return lambda num_channels: nn.GroupNorm(num_groups, num_channels)
     if norm_cfg["name"] == "diffusion_policy":
-        return lambda num_channels: nn.GroupNorm(num_channels // 16, num_channels)
+
+        def _gn_builder(num_channels):
+            num_groups = int(num_channels // 16)
+            return nn.GroupNorm(num_groups, num_channels)
+
+        return _gn_builder
     raise NotImplementedError(f"Missing norm layer: {norm_cfg['name']}")
 
 
@@ -40,7 +46,6 @@ def _construct_resnet(size, norm, weights=None):
 
     if weights is not None:
         w = w.verify(weights).get_state_dict(progress=True)
-        old_keys = list(w.keys())
         if norm is not nn.BatchNorm2d:
             w = {
                 k: v
@@ -112,7 +117,8 @@ class SpatialSoftmax(nn.Module):
             num_kp (int): number of keypoints (None for not use spatialsoftmax)
             temperature (float): temperature term for the softmax.
             learnable_temperature (bool): whether to learn the temperature
-            output_variance (bool): treat attention as a distribution, and compute second-order statistics to return
+            output_variance (bool): treat attention as a distribution,
+            and compute second-order statistics to return
             noise_std (float): add random spatial noise to the predicted keypoints
         """
         super(SpatialSoftmax, self).__init__()
@@ -150,7 +156,7 @@ class SpatialSoftmax(nn.Module):
         """
         Function to compute output shape from inputs to this module.
         Args:
-            input_shape (iterable of int): shape of input. Does not include batch dimension.
+            input_shape (iterable of int): shape of input. Does not include batch.
                 Some modules may not need this argument, if their output does not depend
                 on the size of the input, or if they assume fixed size input.
         Returns:
@@ -182,7 +188,8 @@ class SpatialSoftmax(nn.Module):
         feature = feature.reshape(-1, self._in_h * self._in_w)
         # 2d softmax normalization
         attention = torch.nn.functional.softmax(feature / self.temperature, dim=-1)
-        # [1, H * W] x [B * K, H * W] -> [B * K, 1] for spatial coordinate mean in x and y dimensions
+        # [1, H * W] x [B * K, H * W] -> [B * K, 1]
+        # for spatial coordinate mean in x and y dimensions
         expected_x = torch.sum(self.pos_x * attention, dim=1, keepdim=True)
         expected_y = torch.sum(self.pos_y * attention, dim=1, keepdim=True)
         # stack to [B * K, 2]
@@ -195,7 +202,8 @@ class SpatialSoftmax(nn.Module):
             feature_keypoints += noise
 
         if self.output_variance:
-            # treat attention as a distribution, and compute second-order statistics to return
+            # treat attention as a distribution
+            # and compute second-order statistics to return
             expected_xx = torch.sum(
                 self.pos_x * self.pos_x * attention, dim=1, keepdim=True
             )
@@ -208,7 +216,8 @@ class SpatialSoftmax(nn.Module):
             var_x = expected_xx - expected_x * expected_x
             var_y = expected_yy - expected_y * expected_y
             var_xy = expected_xy - expected_x * expected_y
-            # stack to [B * K, 4] and then reshape to [B, K, 2, 2] where last 2 dims are covariance matrix
+            # stack to [B * K, 4] and then reshape to [B, K, 2, 2]
+            # where last 2 dims are covariance matrix
             feature_covar = torch.cat([var_x, var_xy, var_xy, var_y], 1).reshape(
                 -1, self._num_kp, 2, 2
             )
@@ -249,3 +258,7 @@ class RobomimicResNet(nn.Module):
     @property
     def embed_dim(self):
         return self.feature_dim
+
+    @property
+    def n_tokens(self):
+        return 1

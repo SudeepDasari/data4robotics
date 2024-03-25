@@ -30,6 +30,7 @@ class BaseAgent(nn.Module):
         share_cam_features=False,
         dropout=0,
         feat_norm=None,
+        token_dim=None,
     ):
         super().__init__()
 
@@ -59,6 +60,12 @@ class BaseAgent(nn.Module):
             assert not use_obs
             self._obs_strat = None
 
+        # build (optional) token feature projection layer
+        linear_proj = nn.Identity()
+        if token_dim is not None and token_dim != self._token_dim:
+            linear_proj = nn.Linear(self._token_dim, token_dim)
+            self._token_dim = token_dim
+
         # build feature normalization layers
         if feat_norm == "batch_norm":
             norm = _BatchNorm1DHelper(self._token_dim)
@@ -66,7 +73,10 @@ class BaseAgent(nn.Module):
             norm = nn.LayerNorm(self._token_dim)
         else:
             assert feat_norm is None
-        self.post_proc = nn.Sequential(norm, nn.Dropout(dropout))
+            norm = nn.Identity()
+
+        # final token post proc network
+        self.post_proc = nn.Sequential(linear_proj, norm, nn.Dropout(dropout))
 
     def forward(self, imgs, obs, ac_flat, mask_flat):
         raise NotImplementedError
@@ -79,7 +89,7 @@ class BaseAgent(nn.Module):
         tokens = self.embed(imgs)
 
         if self._obs_strat == "add_token":
-            obs_token = self._obs_proc(obs)
+            obs_token = self._obs_proc(obs)[:, None]
             tokens = torch.cat((tokens, obs_token), 1)
         elif self._obs_strat == "pad_img_tokens":
             obs = self._obs_proc(obs)
@@ -144,6 +154,7 @@ class MLPAgent(BaseAgent):
         dropout=0,
         share_cam_features=False,
         feat_norm="layer_norm",
+        token_dim=None,
     ):
 
         # initialize obs and img tokenizers
@@ -156,6 +167,7 @@ class MLPAgent(BaseAgent):
             share_cam_features=share_cam_features,
             dropout=dropout,
             feat_norm=feat_norm,
+            token_dim=token_dim,
         )
 
         # assign policy class
