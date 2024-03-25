@@ -89,9 +89,6 @@ class BaseTrainer(ABC):
     def _load_callback(self, load_path, load_dict):
         pass
 
-    def wrap_ddp(self):
-        self.model = DDP(model, device_ids=[self.device_id])
-
     @property
     def is_train(self):
         return self._is_train

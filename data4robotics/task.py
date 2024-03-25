@@ -7,8 +7,9 @@
 import numpy as np
 import torch
 import wandb
-from data4robotics.replay_buffer import IterableWrapper
 from torch.utils.data import DataLoader, IterableDataset
+
+from data4robotics.replay_buffer import IterableWrapper
 
 _TEST_WORKERS = 4
 

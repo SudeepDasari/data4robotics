@@ -6,10 +6,11 @@
 
 import os
 
-import data4robotics
 import torch
-from data4robotics.models import resnet, vit
 from torchvision import transforms
+
+import data4robotics
+from data4robotics.models import resnet, vit
 
 # feature install path
 BASE_PATH = os.path.dirname(data4robotics.__file__) + "/../"

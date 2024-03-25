@@ -4,9 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch
 from data4robotics.trainers.base import BaseTrainer
-from torch import nn
 
 
 class BehaviorCloning(BaseTrainer):

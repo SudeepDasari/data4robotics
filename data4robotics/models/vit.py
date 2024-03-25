@@ -11,7 +11,6 @@
 # Modified by Sudeep Dasari
 
 
-import os
 from functools import partial
 
 import timm.models.vision_transformer

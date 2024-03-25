@@ -17,9 +17,7 @@ import hydra
 
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
-from aloha_pro.aloha_scripts.constants import DT, PUPPET_GRIPPER_JOINT_OPEN
 from aloha_pro.aloha_scripts.real_env import make_real_env
-from aloha_pro.aloha_scripts.robot_utils import move_grippers
 
 # PRED_HORIZON = 8
 # EXP_WEIGHT = 0

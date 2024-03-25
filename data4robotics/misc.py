@@ -8,15 +8,13 @@ import functools
 import os
 import signal
 import sys
-import time
 
-import numpy as np
-import torch
 import wandb
 import yaml
-from data4robotics.transforms import get_transform_by_name
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
+
+from data4robotics.transforms import get_transform_by_name
 
 OmegaConf.register_new_resolver("env", lambda x: os.environ[x])
 OmegaConf.register_new_resolver(

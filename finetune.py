@@ -10,10 +10,10 @@ import traceback
 import numpy as np
 import torch
 import tqdm
-from data4robotics import misc, transforms
 from omegaconf import DictConfig, OmegaConf
 
 import hydra
+from data4robotics import misc, transforms
 
 base_path = os.path.dirname(os.path.abspath(__file__))
 

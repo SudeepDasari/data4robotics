@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+
 from data4robotics import load_resnet18, load_vit
 
 # load strongest vit/resnet models
