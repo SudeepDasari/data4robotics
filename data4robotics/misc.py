@@ -71,8 +71,9 @@ def create_wandb_run(wandb_cfg, job_config, run_id=None):
 
     wandb_run = wandb.init(
         project=wandb_cfg.project,
-        config=job_config,
         group=wandb_cfg.group,
+        entity=wandb_cfg.entity,
+        config=job_config,
         name=name,
         notes=notes,
         id=run_id,
