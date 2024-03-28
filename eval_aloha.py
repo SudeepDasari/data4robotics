@@ -7,18 +7,17 @@ from collections import deque
 from pathlib import Path
 
 import cv2
-import hydra
 import numpy as np
 import torch
 import yaml
+
+import hydra
 
 # aloha imports
 
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
-from aloha_pro.aloha_scripts.constants import DT, PUPPET_GRIPPER_JOINT_OPEN
 from aloha_pro.aloha_scripts.real_env import make_real_env
-from aloha_pro.aloha_scripts.robot_utils import move_grippers
 
 
 class Policy:
@@ -89,7 +88,9 @@ class Policy:
         print("Inference time:", time.time() - start)
 
         # make sure the model predicted enough steps
-        assert len(ac) >= self.args.pred_horizon, "model did not return enough predictions!"
+        assert (
+            len(ac) >= self.args.pred_horizon
+        ), "model did not return enough predictions!"
         return ac
 
     def _forward_ensemble(self, obs):
@@ -102,7 +103,12 @@ class Policy:
         num_actions = len(self.act_history)
         print("Num actions:", num_actions)
         curr_act_preds = np.stack(
-            [pred_actions[i] for (i, pred_actions) in zip(range(num_actions - 1, -1, -1), self.act_history)]
+            [
+                pred_actions[i]
+                for (i, pred_actions) in zip(
+                    range(num_actions - 1, -1, -1), self.act_history
+                )
+            ]
         )
 
         # more recent predictions get exponentially *less* weight than older predictions
@@ -124,7 +130,11 @@ class Policy:
         return self.last_ac.copy()
 
     def forward(self, obs):
-        ac = self._forward_ensemble(obs) if self.temp_ensemble else self._forward_chunked(obs)
+        ac = (
+            self._forward_ensemble(obs)
+            if self.temp_ensemble
+            else self._forward_chunked(obs)
+        )
 
         # denormalize the actions
         ac = ac * self.scale + self.loc

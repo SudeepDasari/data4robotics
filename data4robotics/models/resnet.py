@@ -4,22 +4,30 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch, math
+import math
+
 import numpy as np
+import torch
 import torch.nn as nn
 from r3m import load_r3m
 from torchvision import models
+
 from data4robotics.models.base import BaseModel
 
 
 def _make_norm(norm_cfg):
-    if norm_cfg['name'] == 'batch_norm':
+    if norm_cfg["name"] == "batch_norm":
         return nn.BatchNorm2d
-    if norm_cfg['name'] == 'group_norm':
-        num_groups = norm_cfg['num_groups']
+    if norm_cfg["name"] == "group_norm":
+        num_groups = norm_cfg["num_groups"]
         return lambda num_channels: nn.GroupNorm(num_groups, num_channels)
-    if norm_cfg['name'] == 'diffusion_policy':
-        return lambda num_channels: nn.GroupNorm(num_channels // 16, num_channels)
+    if norm_cfg["name"] == "diffusion_policy":
+
+        def _gn_builder(num_channels):
+            num_groups = int(num_channels // 16)
+            return nn.GroupNorm(num_groups, num_channels)
+
+        return _gn_builder
     raise NotImplementedError(f"Missing norm layer: {norm_cfg['name']}")
 
 
@@ -34,39 +42,57 @@ def _construct_resnet(size, norm, weights=None):
         w = models.ResNet50_Weights
         m = models.resnet50(norm_layer=norm)
     else:
-        raise NotImplementedError(f'Missing size: {size}')
-    
+        raise NotImplementedError(f"Missing size: {size}")
+
     if weights is not None:
         w = w.verify(weights).get_state_dict(progress=True)
-        old_keys = list(w.keys())
         if norm is not nn.BatchNorm2d:
-            w = {k:v for k, v in w.items() if 'running_mean' not in k \
-                                           and 'running_var' not in k}
+            w = {
+                k: v
+                for k, v in w.items()
+                if "running_mean" not in k and "running_var" not in k
+            }
         m.load_state_dict(w)
     return m
 
 
 class ResNet(BaseModel):
-    def __init__(self, size, norm_cfg, weights=None, restore_path=''):
+    def __init__(self, size, norm_cfg, weights=None, restore_path="", avg_pool=True):
         norm_layer = _make_norm(norm_cfg)
         model = _construct_resnet(size, norm_layer, weights)
         model.fc = nn.Identity()
+        if not avg_pool:
+            model.avgpool = nn.Identity()
+
         super().__init__(model, restore_path)
-        self._size = size
+        self._size, self._avg_pool = size, avg_pool
 
     def forward(self, x):
-        return self._model(x)
+        if self._avg_pool:
+            return self._model(x)[:, None]
+        B = x.shape[0]
+        x = self._model(x)
+        x = x.reshape((B, self.embed_dim, -1))
+        return x.transpose(1, 2)
 
     @property
     def embed_dim(self):
         return {18: 512, 34: 512, 50: 2048}[self._size]
 
+    @property
+    def n_tokens(self):
+        if self._avg_pool:
+            return 1
+        return 49  # assuming 224x224 images
+
 
 class R3M(ResNet):
-    def __init__(self, size):
+    def __init__(self, size, avg_pool=True):
         nn.Module.__init__(self)
-        self._model = load_r3m(f'resnet{size}').module.convnet.cpu()
-        self._size = size
+        self._model = load_r3m(f"resnet{size}").module.convnet.cpu()
+        if not avg_pool:
+            self._model.avgpool = nn.Identity()
+        self._size, self._avg_pool = size, avg_pool
 
 
 class SpatialSoftmax(nn.Module):
@@ -91,7 +117,8 @@ class SpatialSoftmax(nn.Module):
             num_kp (int): number of keypoints (None for not use spatialsoftmax)
             temperature (float): temperature term for the softmax.
             learnable_temperature (bool): whether to learn the temperature
-            output_variance (bool): treat attention as a distribution, and compute second-order statistics to return
+            output_variance (bool): treat attention as a distribution,
+            and compute second-order statistics to return
             noise_std (float): add random spatial noise to the predicted keypoints
         """
         super(SpatialSoftmax, self).__init__()
@@ -117,7 +144,9 @@ class SpatialSoftmax(nn.Module):
             temperature = nn.Parameter(torch.ones(1) * temperature, requires_grad=False)
             self.register_buffer("temperature", temperature)
 
-        pos_x, pos_y = np.meshgrid(np.linspace(-1.0, 1.0, self._in_w), np.linspace(-1.0, 1.0, self._in_h))
+        pos_x, pos_y = np.meshgrid(
+            np.linspace(-1.0, 1.0, self._in_w), np.linspace(-1.0, 1.0, self._in_h)
+        )
         pos_x = torch.from_numpy(pos_x.reshape(1, self._in_h * self._in_w)).float()
         pos_y = torch.from_numpy(pos_y.reshape(1, self._in_h * self._in_w)).float()
         self.register_buffer("pos_x", pos_x)
@@ -127,7 +156,7 @@ class SpatialSoftmax(nn.Module):
         """
         Function to compute output shape from inputs to this module.
         Args:
-            input_shape (iterable of int): shape of input. Does not include batch dimension.
+            input_shape (iterable of int): shape of input. Does not include batch.
                 Some modules may not need this argument, if their output does not depend
                 on the size of the input, or if they assume fixed size input.
         Returns:
@@ -159,7 +188,8 @@ class SpatialSoftmax(nn.Module):
         feature = feature.reshape(-1, self._in_h * self._in_w)
         # 2d softmax normalization
         attention = torch.nn.functional.softmax(feature / self.temperature, dim=-1)
-        # [1, H * W] x [B * K, H * W] -> [B * K, 1] for spatial coordinate mean in x and y dimensions
+        # [1, H * W] x [B * K, H * W] -> [B * K, 1]
+        # for spatial coordinate mean in x and y dimensions
         expected_x = torch.sum(self.pos_x * attention, dim=1, keepdim=True)
         expected_y = torch.sum(self.pos_y * attention, dim=1, keepdim=True)
         # stack to [B * K, 2]
@@ -172,22 +202,31 @@ class SpatialSoftmax(nn.Module):
             feature_keypoints += noise
 
         if self.output_variance:
-            # treat attention as a distribution, and compute second-order statistics to return
-            expected_xx = torch.sum(self.pos_x * self.pos_x * attention, dim=1, keepdim=True)
-            expected_yy = torch.sum(self.pos_y * self.pos_y * attention, dim=1, keepdim=True)
-            expected_xy = torch.sum(self.pos_x * self.pos_y * attention, dim=1, keepdim=True)
+            # treat attention as a distribution
+            # and compute second-order statistics to return
+            expected_xx = torch.sum(
+                self.pos_x * self.pos_x * attention, dim=1, keepdim=True
+            )
+            expected_yy = torch.sum(
+                self.pos_y * self.pos_y * attention, dim=1, keepdim=True
+            )
+            expected_xy = torch.sum(
+                self.pos_x * self.pos_y * attention, dim=1, keepdim=True
+            )
             var_x = expected_xx - expected_x * expected_x
             var_y = expected_yy - expected_y * expected_y
             var_xy = expected_xy - expected_x * expected_y
-            # stack to [B * K, 4] and then reshape to [B, K, 2, 2] where last 2 dims are covariance matrix
-            feature_covar = torch.cat([var_x, var_xy, var_xy, var_y], 1).reshape(-1, self._num_kp, 2, 2)
+            # stack to [B * K, 4] and then reshape to [B, K, 2, 2]
+            # where last 2 dims are covariance matrix
+            feature_covar = torch.cat([var_x, var_xy, var_xy, var_y], 1).reshape(
+                -1, self._num_kp, 2, 2
+            )
             feature_keypoints = (feature_keypoints, feature_covar)
 
         return feature_keypoints
 
 
 class RobomimicResNet(nn.Module):
-
     def __init__(self, size, norm_cfg, weights=None, img_size=224, feature_dim=64):
         super().__init__()
         norm_layer = _make_norm(norm_cfg)
@@ -196,19 +235,30 @@ class RobomimicResNet(nn.Module):
         self.resnet = nn.Sequential(*(list(model.children())[:-2]))
         resnet_out_dim = int(math.ceil(img_size / 32.0))
         resnet_output_shape = [512, resnet_out_dim, resnet_out_dim]
-        self.spatial_softmax = SpatialSoftmax(resnet_output_shape, num_kp=64, temperature=1.0, noise_std=0.0, output_variance=False, learnable_temperature=False)
+        self.spatial_softmax = SpatialSoftmax(
+            resnet_output_shape,
+            num_kp=64,
+            temperature=1.0,
+            noise_std=0.0,
+            output_variance=False,
+            learnable_temperature=False,
+        )
         pool_output_shape = self.spatial_softmax.output_shape(resnet_output_shape)
         self.flatten = nn.Flatten(start_dim=1, end_dim=-1)
         self.proj = nn.Linear(int(np.prod(pool_output_shape)), feature_dim)
         self.feature_dim = feature_dim
-        
+
     def forward(self, x):
         x = self.resnet(x)
         x = self.spatial_softmax(x)
         x = self.flatten(x)
         x = self.proj(x)
-        return x
-    
+        return x[:, None]
+
     @property
     def embed_dim(self):
         return self.feature_dim
+
+    @property
+    def n_tokens(self):
+        return 1

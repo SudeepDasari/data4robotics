@@ -4,8 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import torch
-from torch import nn
 from data4robotics.trainers.base import BaseTrainer
 
 
@@ -13,8 +11,7 @@ class BehaviorCloning(BaseTrainer):
     def training_step(self, batch, global_step):
         (imgs, obs), actions, mask = batch
         imgs = {k: v.to(self.device_id) for k, v in imgs.items()}
-        obs, actions, mask = [ar.to(self.device_id) for ar in \
-                                                    (obs, actions, mask)]
+        obs, actions, mask = [ar.to(self.device_id) for ar in (obs, actions, mask)]
 
         ac_flat = actions.reshape((actions.shape[0], -1))
         mask_flat = mask.reshape((mask.shape[0], -1))
