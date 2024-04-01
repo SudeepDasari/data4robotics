@@ -9,20 +9,18 @@ from collections import deque
 from pathlib import Path
 
 import cv2
-import h5py
-import hydra
 import numpy as np
 import torch
 import yaml
+
+import hydra
 
 # aloha imports
 DT = 0.02
 
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
-from aloha_pro.aloha_scripts.constants import DT, PUPPET_GRIPPER_JOINT_OPEN
 from aloha_pro.aloha_scripts.real_env import make_real_env
-from aloha_pro.aloha_scripts.robot_utils import move_grippers
 
 
 class Policy:
@@ -93,7 +91,9 @@ class Policy:
         print("Inference time:", time.time() - start)
 
         # make sure the model predicted enough steps
-        assert len(ac) >= self.args.pred_horizon, "model did not return enough predictions!"
+        assert (
+            len(ac) >= self.args.pred_horizon
+        ), "model did not return enough predictions!"
         return ac
 
     def _forward_ensemble(self, obs):
@@ -106,7 +106,12 @@ class Policy:
         num_actions = len(self.act_history)
         print("Num actions:", num_actions)
         curr_act_preds = np.stack(
-            [pred_actions[i] for (i, pred_actions) in zip(range(num_actions - 1, -1, -1), self.act_history)]
+            [
+                pred_actions[i]
+                for (i, pred_actions) in zip(
+                    range(num_actions - 1, -1, -1), self.act_history
+                )
+            ]
         )
 
         # more recent predictions get exponentially *less* weight than older predictions
@@ -128,7 +133,11 @@ class Policy:
         return self.last_ac.copy()
 
     def forward(self, obs):
-        ac = self._forward_ensemble(obs) if self.temp_ensemble else self._forward_chunked(obs)
+        ac = (
+            self._forward_ensemble(obs)
+            if self.temp_ensemble
+            else self._forward_chunked(obs)
+        )
 
         # denormalize the actions
         ac = ac * self.scale + self.loc
@@ -199,7 +208,8 @@ def main():
             rollout_name = f"episode_{rollout_num}.mp4"
             save_path = os.path.join(args.save_dir, rollout_name)
             save_thread = threading.Thread(
-                target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
+                target=save_rollout_video,
+                args=(obs_data, save_path, policy.img_keys, end_time - start_time),
             )
             save_thread.start()
 
@@ -213,7 +223,11 @@ def get_highest_rollout_num(save_dir):
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
 
-    files = [os.path.basename(f) for f in os.listdir(save_dir) if os.path.isfile(os.path.join(save_dir, f))]
+    files = [
+        os.path.basename(f)
+        for f in os.listdir(save_dir)
+        if os.path.isfile(os.path.join(save_dir, f))
+    ]
     if not files:
         return -1  # No files yet
     return max([int(re.search(r"\d+", f_name)[0]) for f_name in files])

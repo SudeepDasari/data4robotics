@@ -40,7 +40,8 @@ train_transform: medium
 
 wandb:
   name: null
-  project: data_proj_finetune
+  project: human_aloha
   group: ${exp_name}
   sweep_name_prefix: eval
   debug: False
+  entity: cmu-agi-lab

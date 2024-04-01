@@ -4,14 +4,23 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import os, hydra, traceback, torch, tqdm, yaml
+import os
+import traceback
+
 import numpy as np
-from data4robotics import misc, transforms
+import torch
+import tqdm
 from omegaconf import DictConfig, OmegaConf
+
+import hydra
+from data4robotics import misc, transforms
+
 base_path = os.path.dirname(os.path.abspath(__file__))
 
 
-@hydra.main(config_path=os.path.join(base_path, 'experiments'), config_name="finetune.yaml")
+@hydra.main(
+    config_path=os.path.join(base_path, "experiments"), config_name="finetune.yaml"
+)
 def bc_finetune(cfg: DictConfig):
     try:
         resume_model = misc.init_job(cfg)
@@ -21,20 +30,24 @@ def bc_finetune(cfg: DictConfig):
         np.random.seed(cfg.seed + 1)
 
         # build agent from hydra configs
-        with open('agent_config.yaml', 'w') as f:
+        with open("agent_config.yaml", "w") as f:
             agent_yaml = OmegaConf.to_yaml(cfg.agent, resolve=True)
             f.write(agent_yaml)
-        
+
         agent = hydra.utils.instantiate(cfg.agent)
         trainer = hydra.utils.instantiate(cfg.trainer, model=agent, device_id=0)
 
         # build task, replay buffer, and dataloader
-        task = hydra.utils.instantiate(cfg.task, batch_size=cfg.batch_size,
-                                                 num_workers=cfg.num_workers)
-        
+        task = hydra.utils.instantiate(
+            cfg.task, batch_size=cfg.batch_size, num_workers=cfg.num_workers
+        )
+
         # create a gpu train transform (if used)
-        gpu_transform = transforms.get_gpu_transform_by_name(cfg.train_transform) \
-                        if 'gpu' in cfg.train_transform else None
+        gpu_transform = (
+            transforms.get_gpu_transform_by_name(cfg.train_transform)
+            if "gpu" in cfg.train_transform
+            else None
+        )
 
         # restore/save the model as required
         if resume_model is not None:
@@ -45,14 +58,16 @@ def bc_finetune(cfg: DictConfig):
 
         # register checkpoint handler and enter train loop
         misc.set_checkpoint_handler(trainer, cfg.checkpoint_path)
-        print(f'Starting at Global Step {misc.GLOBAL_STEP}')
-        
+        print(f"Starting at Global Step {misc.GLOBAL_STEP}")
+
         trainer.set_train()
         train_iterator = iter(task.train_loader)
-        for itr in (pbar := tqdm.tqdm(range(cfg.max_iterations), postfix=dict(Loss=None))):
+        for itr in (
+            pbar := tqdm.tqdm(range(cfg.max_iterations), postfix=dict(Loss=None))
+        ):
             if itr < misc.GLOBAL_STEP:
                 continue
-            
+
             # infinitely sample batches until the train loop is finished
             try:
                 batch = next(train_iterator)
@@ -90,11 +105,11 @@ def bc_finetune(cfg: DictConfig):
                 trainer.save_checkpoint(cfg.checkpoint_path, misc.GLOBAL_STEP)
 
     # gracefully handle and log errors
-    except:
-        traceback.print_exc(file=open('exception.log', 'w'))
-        with open('exception.log', 'r') as f:
+    except Exception:
+        traceback.print_exc(file=open("exception.log", "w"))
+        with open("exception.log", "r") as f:
             print(f.read())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     bc_finetune()

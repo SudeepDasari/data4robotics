@@ -13,10 +13,13 @@ class BaseModel(nn.Module):
         super().__init__()
         self._model = model
         if restore_path:
-            print('Restoring model from', restore_path)
-            state_dict = torch.load(restore_path, map_location='cpu')
-            state_dict = state_dict['features'] if 'features' in state_dict \
-                         else state_dict['model']
+            print("Restoring model from", restore_path)
+            state_dict = torch.load(restore_path, map_location="cpu")
+            state_dict = (
+                state_dict["features"]
+                if "features" in state_dict
+                else state_dict["model"]
+            )
             self.load_state_dict(state_dict)
 
     @property

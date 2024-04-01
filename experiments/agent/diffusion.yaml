@@ -9,7 +9,6 @@ defaults:
   - _self_
 
 _target_: data4robotics.models.diffusion.DiffusionTransformerAgent
-shared_mlp: []
 odim: ${task.obs_dim}
 n_cams: ${task.n_cams}
 use_obs: False
@@ -20,7 +19,7 @@ ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
 imgs_per_cam: ${img_chunk}
 share_cam_features: False
-feat_batch_norm: False
+feat_norm: null
 
 noise_net_kwargs:
   dropout: ${agent.dropout}

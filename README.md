@@ -1,7 +1,7 @@
 # Basic commands for octo baselines
 For robobuf data conversion example, check out [this repo](https://github.com/AGI-Labs/r2d2_to_robobuf)
 
-**Note:** If CPU image augmentation is a major bottleneck during data loading, set `train_transform=gpu_medium`. This will move data aug to the GPU. 
+**Note:** If CPU image augmentation is a major bottleneck during data loading, set `train_transform=gpu_medium`. This will move data aug to the GPU.
 
 ```
 # vc-1 training command (velocity action space, gaussian mlp policy)
@@ -56,7 +56,7 @@ pip install -e ./
 ```
 
 ## Using Pre-Trained Features
-You can easily download our pre-trained represenations using the provided script: `./download_features.sh` 
+You can easily download our pre-trained represenations using the provided script: `./download_features.sh`
 
 The features are very modular, and easy to use in your own code-base! Please refer to the [example code](https://github.com/SudeepDasari/data4robotics/blob/main/pretrained_networks_example.py) if you're interested in this.
 

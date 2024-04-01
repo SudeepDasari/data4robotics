@@ -4,8 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-from data4robotics import load_vit, load_resnet18
 
+from data4robotics import load_resnet18, load_vit
 
 # load strongest vit/resnet models
 vit_transform, vit_model = load_vit()
@@ -19,5 +19,5 @@ emb_res = res_model(res_transform(input_img))
 
 
 # print out shapes
-print('vit_base embedding shape:', emb_vit.shape)
-print('resnet18 embedding shape:', emb_res.shape)
+print("vit_base embedding shape:", emb_vit.shape)
+print("resnet18 embedding shape:", emb_res.shape)
