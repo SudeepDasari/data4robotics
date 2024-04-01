@@ -153,7 +153,7 @@ def main():
     parser.add_argument("--exp_weight", default=0, type=float)
     parser.add_argument("--hz", default=48, type=float)
     parser.add_argument("--gamma", default=0.85, type=float)
-    parser.add_argument("--save_dir", type=str, required=True)
+    parser.add_argument("--save_dir", type=str)
 
     args = parser.parse_args()
     args.period = 1.0 / args.hz
@@ -193,19 +193,23 @@ def main():
 
         end_time = time.time()
 
-        # Reset gripper to let go of stuff
-        # FIXME: Add in find highest rollout_num from existing dir.
-        rollout_name = f"episode_{rollout_num}.mp4"
-        save_path = os.path.join(args.save_dir, rollout_name)
-        save_thread = threading.Thread(
-            target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
-        )
-        save_thread.start()
+        if args.save_dir:
+            # Save the rollout video if save_dir is provided
+
+            rollout_name = f"episode_{rollout_num}.mp4"
+            save_path = os.path.join(args.save_dir, rollout_name)
+            save_thread = threading.Thread(
+                target=save_rollout_video, args=(obs_data, save_path, policy.img_keys, end_time - start_time)
+            )
+            save_thread.start()
 
         env._reset_gripper()
 
 
 def get_highest_rollout_num(save_dir):
+    """
+    Get the highest rollout number in the save directory
+    """
     if not os.path.exists(save_dir):
         raise ValueError(f"Directory {save_dir} does not exist.")
 
@@ -216,9 +220,10 @@ def get_highest_rollout_num(save_dir):
 
 
 def save_rollout_video(obs, path, camera_names, length_of_episode):
+    """
+    Save the policy rollout to a video
+    """
     t0 = time.time()
-
-    cam_names = ["cam_high", "cam_low", "cam_left_wrist", "cam_right_wrist"]
 
     # Get the list
     image_dict = {}
@@ -242,7 +247,7 @@ def save_rollout_video(obs, path, camera_names, length_of_episode):
     n_frames, h, w, _ = all_cam_videos.shape
     fps = int(
         n_frames / length_of_episode
-    )  # This is an estimate, but the frames are not uniformly distributed when rolling out the policy.
+    )  # This is an estimate, but the frames are not uniformly distributed when rolling out the policy, leading to skips in the video.
 
     out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
     for t in range(n_frames):
