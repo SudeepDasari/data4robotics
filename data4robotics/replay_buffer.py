@@ -96,13 +96,6 @@ class ReplayBuffer(Dataset):
         return (i_t, o_t), a_t, loss_mask
 
 
-def _embed_img(features, img, device, transform):
-    img = transform(_img_to_tensor(img))
-    with torch.no_grad():
-        feat = features(img.to(device))
-    return feat.reshape(-1).cpu().numpy().astype(np.float32)
-
-
 class IterableWrapper(IterableDataset):
     def __init__(self, wrapped_dataset, max_count=float("inf")):
         self.wrapped = wrapped_dataset
@@ -130,6 +123,8 @@ class RobobufReplayBuffer(ReplayBuffer):
         mode="train",
         ac_chunk=1,
         cam_indexes=[0],
+        goal_indexes=[],
+        goal_geom_prob=0.01,
         past_frames=0,
         ac_dim=7,
     ):
@@ -156,7 +151,15 @@ class RobobufReplayBuffer(ReplayBuffer):
 
         self.transform = transform
         self.s_a_mask = []
+
+        self.cam_indexes = cam_indexes = list(cam_indexes)
+        self.past_frames = past_frames
         print(f"Building {mode} buffer with cam_indexes={cam_indexes}")
+
+        self.goal_geom_prob = goal_geom_prob
+        self.goal_indexes = set(goal_indexes)
+        assert all([g in self.cam_indexes for g in self.goal_indexes])
+
         for idx in tqdm.tqdm(index_list):
             t = buf[idx]
 
@@ -164,23 +167,49 @@ class RobobufReplayBuffer(ReplayBuffer):
             for _ in range(ac_chunk):
                 chunked_actions.append(loop_t.action[None])
                 loss_mask.append(1.0)
-                loop_t = loop_t.next
 
-                if loop_t is None:
+                if loop_t.next is None:
                     break
+                loop_t = loop_t.next
 
             if len(chunked_actions) < ac_chunk:
                 for _ in range(ac_chunk - len(chunked_actions)):
                     chunked_actions.append(chunked_actions[-1])
                     loss_mask.append(0.0)
 
-            i_t = {
-                f"cam{i}": _get_imgs(t, cam_idx, past_frames)
-                for i, cam_idx in enumerate(cam_indexes)
-            }
-            o_t = t.obs.state
             a_t = np.concatenate(chunked_actions, 0).astype(np.float32)
             assert ac_dim == a_t.shape[-1]
 
             loss_mask = np.array(loss_mask, dtype=np.float32)
-            self.s_a_mask.append(((i_t, o_t), a_t, loss_mask))
+            self.s_a_mask.append((t, a_t, loss_mask, loop_t))
+
+    def __getitem__(self, idx):
+        step, a_t, loss_mask, goal = self.s_a_mask[idx]
+
+        if self.goal_indexes:
+            while np.random.uniform() > self.goal_geom_prob and goal.next is not None:
+                goal = goal.next
+
+        i_t, o_t = dict(), step.obs.state
+        for idx, cam_idx in enumerate(self.cam_indexes):
+            i_c = _get_imgs(step, cam_idx, self.past_frames)
+            if self.goal_indexes:
+                g_c = (
+                    _get_imgs(goal, cam_idx, 0)
+                    if cam_idx in self.goal_indexes
+                    else np.zeros_like(i_c[:1])
+                )
+                i_c = np.concatenate((g_c, i_c), axis=0)
+
+            i_c = _img_to_tensor(i_c)
+            if self.transform is not None:
+                i_c = self.transform(i_c)
+
+            i_t[f"cam{idx}"] = i_c
+
+        o_t, a_t = _to_tensor(o_t), _to_tensor(a_t)
+        loss_mask = _to_tensor(loss_mask)[:, None].repeat((1, a_t.shape[-1]))
+        assert (
+            loss_mask.shape[0] == a_t.shape[0]
+        ), "a_t and mask shape must be ac_chunk!"
+        return (i_t, o_t), a_t, loss_mask

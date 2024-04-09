@@ -28,6 +28,7 @@ class BaseAgent(nn.Module):
         imgs_per_cam,
         use_obs=False,
         share_cam_features=False,
+        early_fusion=False,
         dropout=0,
         feat_norm=None,
         token_dim=None,
@@ -42,6 +43,8 @@ class BaseAgent(nn.Module):
             feat_list = [features] + [copy.deepcopy(features) for _ in range(1, n_cams)]
             self.visual_features = nn.ModuleList(feat_list)
 
+        self.early_fusion = early_fusion
+        imgs_per_cam = 1 if early_fusion else imgs_per_cam
         self._token_dim = features.embed_dim
         self._n_tokens = imgs_per_cam * n_cams * features.n_tokens
 
@@ -105,11 +108,17 @@ class BaseAgent(nn.Module):
 
     def embed(self, imgs):
         def embed_helper(net, im):
-            if len(im.shape) == 5:
+            if self.early_fusion and len(im.shape) == 5:
+                T = im.shape[1]
+                im = torch.cat([im[:, t] for t in range(T)], 1)
+                return net(im)
+            elif len(im.shape) == 5:
                 B, T, C, H, W = im.shape
                 embeds = net(im.reshape((B * T, C, H, W)))
                 embeds = embeds.reshape((B, -1, net.embed_dim))
                 return embeds
+
+            assert len(im.shape) == 4
             return net(im)
 
         if self._share_cam_features:
@@ -153,6 +162,7 @@ class MLPAgent(BaseAgent):
         imgs_per_cam=1,
         dropout=0,
         share_cam_features=False,
+        early_fusion=False,
         feat_norm="layer_norm",
         token_dim=None,
     ):
@@ -165,6 +175,7 @@ class MLPAgent(BaseAgent):
             imgs_per_cam=imgs_per_cam,
             use_obs=use_obs,
             share_cam_features=share_cam_features,
+            early_fusion=early_fusion,
             dropout=dropout,
             feat_norm=feat_norm,
             token_dim=token_dim,

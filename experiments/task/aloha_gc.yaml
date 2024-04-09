@@ -17,8 +17,8 @@ train_buffer:
   n_test_trans: 500
   ac_chunk: ${ac_chunk}
   mode: train
-  cam_indexes: [1, 3]
-  goal_indexes: []
+  cam_indexes: [0, 1, 3]
+  goal_indexes: [0]
   past_frames: ${add:${img_chunk},-1}
   ac_dim: ${task.ac_dim}
 
