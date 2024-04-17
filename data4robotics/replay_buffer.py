@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import tqdm
 from robobuf import ReplayBuffer as RB
+from tensorflow.io import gfile
 from torch.utils.data import Dataset, IterableDataset
 
 # helper functions
@@ -20,6 +21,22 @@ _img_to_tensor = (
     lambda x: torch.from_numpy(x.copy()).permute((0, 3, 1, 2)).float() / 255
 )
 _to_tensor = lambda x: torch.from_numpy(x).float()
+
+
+# cache loading from the buffer list to half memory overhead
+buf_cache = dict()
+
+
+def _cached_load(path):
+    global buf_cache
+
+    if path in buf_cache:
+        return buf_cache[path]
+
+    with gfile.GFile(path, "rb") as f:
+        buf = RB.load_traj_list(pkl.load(f))
+    buf_cache[path] = buf
+    return buf
 
 
 def _get_imgs(t, cam_idx, past_frames):
@@ -129,8 +146,7 @@ class RobobufReplayBuffer(ReplayBuffer):
         ac_dim=7,
     ):
         assert mode in ("train", "test"), "Mode must be train/test"
-        with open(buffer_path, "rb") as f:
-            buf = RB.load_traj_list(pkl.load(f))
+        buf = _cached_load(buffer_path)
         assert len(buf) > n_test_trans, "Not enough transitions!"
 
         norm_file = os.path.join(os.path.dirname(buffer_path), "ac_norm.json")
