@@ -167,7 +167,7 @@ def main():
     args = parser.parse_args()
     args.period = 1.0 / args.hz
 
-    if not os.path.exists(args.save_dir):
+    if args.save_dir and not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
@@ -176,7 +176,11 @@ def main():
 
     env = make_real_env(init_node=True)
 
-    next_highest = get_highest_rollout_num(args.save_dir) + 1
+    if args.save_dir:
+        next_highest = get_highest_rollout_num(args.save_dir) + 1
+    else:
+        # Default to starting at 0
+        next_highest = 0
 
     # Roll out the policy num_rollout times
     for rollout_num in range(next_highest, args.num_rollouts + next_highest):
