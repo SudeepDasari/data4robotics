@@ -209,7 +209,7 @@ class MLPAgent(BaseAgent):
 
     def _mlp_forward(self, imgs, obs):
         tokens_flat = self.tokenize_obs(imgs, obs, flatten=True)
-        return self._shared_mlp(tokens_flat)
+        return self._mlp(tokens_flat)
 
     @property
     def ac_chunk(self):
