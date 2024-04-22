@@ -48,6 +48,14 @@ class Policy:
         self.transform = hydra.utils.instantiate(obs_config["transform"])
         self.img_keys = obs_config["imgs"]
 
+        if args.goal_path:
+            bgr_img = cv2.imread(GOAL_PATH)[:,:,:3]
+            bgr_img = cv2.resize(bgr_img, (256, 256), interpolation=cv2.INTER_AREA)
+            rgb_img = torch.from_numpy(bgr_img[:,:,::-1].copy()).float().permute((2, 0, 1)) / 255
+            self.goal_img = self.transform(rgb_img)[None].cuda()
+        else:
+            self.goal_img = None
+
         print(f"loaded agent from {agent_path}, at step: {save_dict['global_step']}")
         self.temp_ensemble = args.temp_ensemble
         self.pred_horizon = args.pred_horizon
@@ -65,15 +73,23 @@ class Policy:
             bgr_img = cv2.resize(bgr_img, size, interpolation=cv2.INTER_AREA)
             rgb_img = bgr_img[:, :, ::-1].copy()
             rgb_img = torch.from_numpy(rgb_img).float().permute((2, 0, 1)) / 255
-            torch_imgs[f"cam{i}"] = self.transform(rgb_img)[None].cuda()
+            rgb_img = self.transform(rgb_img)[None].cuda()
+
+            if self.goal_img is not None:
+                if k == 'cam_high':
+                    torch_imgs[f"cam{i}"] = torch.cat((self.goal_img, rgb_img), 0)[None]
+                else:
+                    zero_pad = torch.zeros_like(self.goal_img)
+                    torch_imgs[f"cam{i}"] = torch.cat((zero_pad, rgb_img), 0)[None]
+            else:
+                torch_imgs[f"cam{i}"] = rgb_img[None]
+
         return torch_imgs
 
     def _proc_state(self, qpos):
         return torch.from_numpy(qpos).float()[None].cuda()
 
     def _infer_policy(self, obs):
-        import time
-
         start = time.time()
         img = self._proc_images(obs["images"])
         print("Image processing time:", time.time() - start)
@@ -159,6 +175,7 @@ def main():
     parser.add_argument("--exp_weight", default=0, type=float)
     parser.add_argument("--hz", default=48, type=float)
     parser.add_argument("--gamma", default=0.85, type=float)
+    parser.add_argument("--goal_path", default=None, type=str)
 
     args = parser.parse_args()
     args.period = 1.0 / args.hz
