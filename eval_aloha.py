@@ -49,7 +49,7 @@ class Policy:
         self.img_keys = obs_config["imgs"]
 
         if args.goal_path:
-            bgr_img = cv2.imread(GOAL_PATH)[:,:,:3]
+            bgr_img = cv2.imread(args.goal_path)[:,:,:3]
             bgr_img = cv2.resize(bgr_img, (256, 256), interpolation=cv2.INTER_AREA)
             rgb_img = torch.from_numpy(bgr_img[:,:,::-1].copy()).float().permute((2, 0, 1)) / 255
             self.goal_img = self.transform(rgb_img)[None].cuda()
