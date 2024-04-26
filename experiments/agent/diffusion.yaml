@@ -17,8 +17,9 @@ train_diffusion_steps: 100
 eval_diffusion_steps: 8
 ac_dim: ${task.ac_dim}
 ac_chunk: ${ac_chunk}
-imgs_per_cam: ${img_chunk}
+imgs_per_cam: ${add:${img_chunk},${len:${task.train_buffer.goal_indexes}}}
 share_cam_features: False
+early_fusion: False
 feat_norm: null
 
 noise_net_kwargs:

@@ -57,12 +57,25 @@ def _construct_resnet(size, norm, weights=None):
 
 
 class ResNet(BaseModel):
-    def __init__(self, size, norm_cfg, weights=None, restore_path="", avg_pool=True):
+    def __init__(
+        self,
+        size,
+        norm_cfg,
+        weights=None,
+        restore_path="",
+        avg_pool=True,
+        conv_repeat=0,
+    ):
         norm_layer = _make_norm(norm_cfg)
         model = _construct_resnet(size, norm_layer, weights)
         model.fc = nn.Identity()
         if not avg_pool:
             model.avgpool = nn.Identity()
+
+        if conv_repeat > 1:
+            w = model.conv1.weight.data.repeat((1, conv_repeat, 1, 1))
+            model.conv1.weight.data = w
+            model.conv1.in_channels *= conv_repeat
 
         super().__init__(model, restore_path)
         self._size, self._avg_pool = size, avg_pool

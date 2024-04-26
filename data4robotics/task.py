@@ -24,7 +24,7 @@ def _build_data_loader(buffer, batch_size, num_workers, is_train=False):
         num_workers=num_workers,
         shuffle=not isinstance(buffer, IterableDataset),
         pin_memory=True,
-        persistent_workers=True,
+        persistent_workers=num_workers > 0,
         drop_last=True,
         worker_init_fn=lambda _: np.random.seed(),
     )
