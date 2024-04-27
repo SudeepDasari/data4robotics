@@ -1,7 +1,9 @@
 import argparse
 import json
 import os
+import re
 import sys
+import threading
 import time
 from collections import deque
 from pathlib import Path
@@ -14,6 +16,7 @@ import yaml
 import hydra
 
 # aloha imports
+DT = 0.02
 
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
 sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
@@ -49,7 +52,7 @@ class Policy:
         self.img_keys = obs_config["imgs"]
 
         if args.goal_path:
-            bgr_img = cv2.imread(GOAL_PATH)[:,:,:3]
+            bgr_img = cv2.imread(args.goal_path)[:,:,:3]
             bgr_img = cv2.resize(bgr_img, (256, 256), interpolation=cv2.INTER_AREA)
             rgb_img = torch.from_numpy(bgr_img[:,:,::-1].copy()).float().permute((2, 0, 1)) / 255
             self.goal_img = self.transform(rgb_img)[None].cuda()
@@ -175,10 +178,14 @@ def main():
     parser.add_argument("--exp_weight", default=0, type=float)
     parser.add_argument("--hz", default=48, type=float)
     parser.add_argument("--gamma", default=0.85, type=float)
+    parser.add_argument("--save_dir", type=str)
     parser.add_argument("--goal_path", default=None, type=str)
 
     args = parser.parse_args()
     args.period = 1.0 / args.hz
+
+    if args.save_dir and not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
@@ -186,24 +193,106 @@ def main():
 
     env = make_real_env(init_node=True)
 
+    if args.save_dir:
+        next_highest = get_highest_rollout_num(args.save_dir) + 1
+    else:
+        # Default to starting at 0
+        next_highest = 0
+
     # Roll out the policy num_rollout times
-    for _ in range(args.num_rollouts):
+    for rollout_num in range(next_highest, args.num_rollouts + next_highest):
 
         last_input = None
-        while last_input != 'y':
-            if last_input == 'r':
+        while last_input != "y":
+            if last_input == "r":
                 obs = env.reset()
             last_input = input("Continue with rollout (y; r to reset now)?")
-        
+
         policy.reset()
+
+        obs_data = []
+
         obs = env.reset()
+        start_time = time.time()
+        obs_data.append(obs)
 
         for _ in range(args.T):
             ac = policy.forward(obs.observation)
             obs = env.step(ac)
+            obs_data.append(obs)
 
-        # Reset gripper to let go of stuff
+        end_time = time.time()
+
+        if args.save_dir:
+            # Save the rollout video if save_dir is provided
+
+            rollout_name = f"episode_{rollout_num}.mp4"
+            save_path = os.path.join(args.save_dir, rollout_name)
+            save_thread = threading.Thread(
+                target=save_rollout_video,
+                args=(obs_data, save_path, policy.img_keys, end_time - start_time),
+            )
+            save_thread.start()
+
         env._reset_gripper()
+
+
+def get_highest_rollout_num(save_dir):
+    """
+    Get the highest rollout number in the save directory
+    """
+    if not os.path.exists(save_dir):
+        raise ValueError(f"Directory {save_dir} does not exist.")
+
+    files = [
+        os.path.basename(f)
+        for f in os.listdir(save_dir)
+        if os.path.isfile(os.path.join(save_dir, f))
+    ]
+    if not files:
+        return -1  # No files yet
+    return max([int(re.search(r"\d+", f_name)[0]) for f_name in files])
+
+
+def save_rollout_video(obs, path, camera_names, length_of_episode):
+    """
+    Save the policy rollout to a video
+    """
+    t0 = time.time()
+
+    # Get the list
+    image_dict = {}
+
+    for cam_name in camera_names:
+        image_dict[cam_name] = []
+
+    # len(action): max_timesteps, len(time_steps): max_timesteps + 1
+    while len(obs) > 1:
+        ts = obs.pop(0)
+        for cam_name in camera_names:
+            image_dict[cam_name].append(ts.observation["images"][cam_name])
+
+    cam_names = list(image_dict.keys())
+
+    all_cam_videos = []
+    for cam_name in cam_names:
+        all_cam_videos.append(image_dict[cam_name])
+    all_cam_videos = np.concatenate(all_cam_videos, axis=2)  # width dimension
+
+    n_frames, h, w, _ = all_cam_videos.shape
+    fps = int(
+        n_frames / length_of_episode
+    )  # This is an estimate, but the frames are not uniformly distributed when rolling out the policy, leading to skips in the video.
+
+    out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    for t in range(n_frames):
+        image = all_cam_videos[t]
+        image = image[:, :, [0, 1, 2]]
+        out.write(image)
+    out.release()
+
+    print(f"Saving: {time.time() - t0:.1f} secs")
+
 
 if __name__ == "__main__":
     main()
