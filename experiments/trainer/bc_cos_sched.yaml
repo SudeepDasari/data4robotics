@@ -20,5 +20,5 @@ schedule_builder:
   schedule_type: 'cosine'
   from_diffusers: True
   schedule_kwargs:
-    num_warmup_steps: 500
+    num_warmup_steps: 5000
     num_training_steps: ${max_iterations}
