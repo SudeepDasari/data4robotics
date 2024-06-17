@@ -6,6 +6,6 @@ if [ -d "visual_features" ]; then
     exit 0
 fi
 
-wget --output-document features.zip https://cmu.box.com/shared/static/rrlrp5g6ynk03io4rj9uzf6nik5urfl6
+wget --output-document features.zip https://www.cs.cmu.edu/~data4robotics/release/features.zip
 unzip features.zip
 rm features.zip
