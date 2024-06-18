@@ -9,10 +9,10 @@ import cv2
 import numpy as np
 import torch
 import yaml
-from r2d2.robot_env import RobotEnv
 
-# r2d2 robot imports
-from r2d2.user_interface.eval_gui import EvalGUI
+# droid robot imports
+from droid.robot_env import RobotEnv
+from droid.user_interface.eval_gui import EvalGUI
 from scipy.spatial.transform import Rotation as R
 
 import hydra
@@ -43,7 +43,7 @@ def rot6d_to_euler(d6):
     return rmat_to_euler(out)
 
 
-class BaselinePolicy:
+class DROIDStatePolicy:
     def __init__(self, agent_path, model_name):
         with open(Path(agent_path, "agent_config.yaml"), "r") as f:
             config_yaml = f.read()
@@ -143,17 +143,9 @@ def main():
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
-    policy = BaselinePolicy(agent_path, model_name)
+    policy = DROIDStatePolicy(agent_path, model_name)
 
-    # test with a null observation if you desire
-    # img = {'26638268_left':np.zeros((512, 512, 3))}
-    # rbt_state = dict(cartesian_position=np.zeros((6,)),
-    #                   gripper_position=0)
-    # null_obs = dict(image=img, robot_state=rbt_state)
-    # policy.forward(null_obs); policy.forward(null_obs)
-    # exit(0)
-
-    # start up R2D2 eval gui
+    # start up DROID eval gui
     env = RobotEnv(action_space="cartesian_position")
     EvalGUI(policy=policy, env=env)
 

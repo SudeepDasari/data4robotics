@@ -1,38 +1,7 @@
-# Basic commands for octo baselines
-For robobuf data conversion example, check out [this repo](https://github.com/AGI-Labs/r2d2_to_robobuf)
+# A Fresh Look at Human Data for Robotic Pre-Training
+[[Data4Robotics]](https://data4robotics.github.io/) [[HRP]](https://www.cs.cmu.edu/~data4robotics/hrp/index.html)
 
-**Note:** If CPU image augmentation is a major bottleneck during data loading, set `train_transform=gpu_medium`. This will move data aug to the GPU.
-
-```
-# vc-1 training command (velocity action space, gaussian mlp policy)
-nice -n 19 python finetune.py agent/policy=gaussian_constant exp_name=octo_baselines wandb.name=vc1_baseline buffer_path=/path/to/vel/buf.pkl max_iterations=50000  task.train_buffer.cam_indexes=[<target_cam_id>] train_transform=hard agent.features.restore_path=/path/to/vc1.pth
-
-# r3m training command (velocity action space, gaussian mlp policy)
-nice -n 19 python finetune.py agent/features=r3m agent/policy=gaussian_constant exp_name=octo_baselines wandb.name=r3m_baseline buffer_path=/path/to/vel/buf.pkl max_iterations=50000  task.train_buffer.cam_indexes=[<target_cam_id>] train_transform=medium agent.features.size=50
-
-# single-cam diffusion (position + r6 rotation action space)
-nice -n 19 python finetune.py agent=diffusion_unet exp_name=octo_baselines wandb.name=diffusion_singlecam buffer_path=/path/to/abs_r6/buf.pkl max_iterations=500000  trainer=bc_cos_sched ac_chunk=16 train_transform=medium task.train_buffer.cam_indexes=[<target_cam_id>] agent.features.feature_dim=256
-
-# wrist-cam + 2-step obs diffusion (position + r6 rotation action space)
-nice -n 19 python finetune.py agent=diffusion_unet exp_name=octo_baselines wandb.name=diffusion_multicam buffer_path=/path/to/abs_r6/buf.pkl max_iterations=500000  trainer=bc_cos_sched ac_chunk=16 train_transform=medium task.train_buffer.cam_indexes=[<front_cam_id>, <wrist_cam_id>] task.train_buffer.cam_indexes=[0,2] img_chunk=2
-```
-
-# Eval Scripts
-
-Checkout `eval_ptr.py` and `eval_diffusion.py` respectively for reference eval scripts.
-
-Here is an example of `obs_config.yaml` (place in the checkpoint folder), used by the eval scripts
-```
-img: '26638268_left'
-transform:
-  _target_: data4robotics.transforms.get_transform_by_name
-  name: preproc
-```
-
-# An Unbiased Look at Datasets for Visuo-Motor Pre-Training
-[[Project Page]](https://data4robotics.github.io/)
-
-This repository offers a minimal Behavior Cloning (BC) implementation using pre-trained representations from our CoRL project. All tests were conducted on a Franka Panda robot, using the [polymetis controller](https://facebookresearch.github.io/fairo/polymetis/). We've also verified that it works on the [R2D2 control stack](https://github.com/AlexanderKhazatsky/R2D2/tree/main).
+This repository offers a minimal Behavior Cloning (BC) implementation using pre-trained representations from our CoRL and RSS projects. We've succesfully deployed policies from this code on Franka robots (w/ [DROID](https://github.com/droid-dataset/droid/tree/main) and [MaNiMo](https://github.com/AGI-Labs/manimo)), [ALOHA](https://tonyzhaozh.github.io/aloha/) robots, and on [LEAP hands](https://www.leaphand.com). Check out our [eval scripts](eval_scripts/README.md) for more information.
 
 If you find this codebase or our pre-trained representations useful at all, please cite:
 ```
@@ -42,7 +11,15 @@ If you find this codebase or our pre-trained representations useful at all, plea
       booktitle={Conference on Robot Learning},
       year={2023},
       organization={PMLR}
-    }
+}
+
+@inproceedings{kumar2024hrp,
+    title={HRP: Human Affordances for Robotic Pre-Training},
+    author = {Mohan Kumar Srirama and Sudeep Dasari and Shikhar Bahl and Abhinav Gupta},
+    booktitle = {Proceedings of Robotics: Science and Systems},
+    address  = {Delft, Netherlands},
+    year = {2024},
+}
 ```
 ## Installation
 Our repository is easy to install using miniconda or anaconda:
@@ -53,15 +30,17 @@ conda activate data4robotics
 pip install git+https://github.com/AGI-Labs/robobuf.git
 pip install git+https://github.com/facebookresearch/r3m.git
 pip install -e ./
+pre-commit install  # required for pushing back to the source git
 ```
 
 ## Using Pre-Trained Features
-You can easily download our pre-trained represenations using the provided script: `./download_features.sh`
+You can easily download our pre-trained represenations using the provided script: `./download_features.sh`. You may also download the features individually on our [release website](https://www.cs.cmu.edu/~data4robotics/release/).
 
-The features are very modular, and easy to use in your own code-base! Please refer to the [example code](https://github.com/SudeepDasari/data4robotics/blob/main/pretrained_networks_example.py) if you're interested in this.
+The features are very modular, and easy to use in your own code-base! Please refer to the [example code](https://github.com/SudeepDasari/data4robotics/blob/main/pretrained_networks_example.py) if you're interested.
 
 ## Training BC Policies
-First, you're going to need to convert your training trajectories into our [robobuf](https://github.com/AGI-Labs/robobuf/tree/main) format (pseudo-code below).
+First, you're going to need to convert your training trajectories into our [robobuf](https://github.com/AGI-Labs/robobuf/tree/main) format (pseudo-code below). Check out some example ALOHA and DROID conversion code [here](https://github.com/AGI-Labs/r2d2_to_robobuf).
+
 ```
 def _resize_and_encode(rgb_img, size=(256,256)):
     bgr_image = cv2.resize(bgr_image, size, interpolation=cv2.INTER_AREA)
@@ -84,8 +63,12 @@ def convert_trajectories(input_trajs, out_path):
         pkl.dump(out_trajs, f)
 ```
 
-Once the conversion is complete, you can run the example command below:
+Once the conversion is complete, you can run the one of the example commands below:
 ```
+# Gaussian Mixture Model bc-policy with SOUP representations
 python finetune.py exp_name=test agent.features.restore_path=/path/to/SOUP_1M_DH.pth buffer_path=/data/path/buffer.pkl
+
+# Diffusion Policy (U-Net head) w/ HRP representations
+python finetune.py exp_name=test agent=diffusion_unet task=end_effector_r6 agent/features=vit_base agent.features.restore_path=/path/to/IN_hrp.pth buffer_path=/data/path/buffer.pkl trainer=bc_cos_sched ac_chunk=16
 ```
 This will result in a policy checkpoint saved in the `bc_finetune/<exp_name>` folder.

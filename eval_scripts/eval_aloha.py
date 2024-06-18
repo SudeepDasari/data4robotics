@@ -15,11 +15,10 @@ import yaml
 
 import hydra
 
-# aloha imports
-DT = 0.02
-
-sys.path.append("/home/huzheyuan/Desktop/language-dagger/src")
-sys.path.append("/home/huzheyuan/Desktop/language-dagger/src/aloha_pro/aloha_scripts/")
+# add core aloha files to path then do aloha imports
+BASE_PATH = os.path.expanduser("~/aloha/")
+sys.path.append(BASE_PATH + "src")
+sys.path.append(BASE_PATH + "src/aloha_pro/aloha_scripts/")
 from aloha_pro.aloha_scripts.real_env import make_real_env
 
 
@@ -52,9 +51,12 @@ class Policy:
         self.img_keys = obs_config["imgs"]
 
         if args.goal_path:
-            bgr_img = cv2.imread(args.goal_path)[:,:,:3]
+            bgr_img = cv2.imread(args.goal_path)[:, :, :3]
             bgr_img = cv2.resize(bgr_img, (256, 256), interpolation=cv2.INTER_AREA)
-            rgb_img = torch.from_numpy(bgr_img[:,:,::-1].copy()).float().permute((2, 0, 1)) / 255
+            rgb_img = (
+                torch.from_numpy(bgr_img[:, :, ::-1].copy()).float().permute((2, 0, 1))
+                / 255
+            )
             self.goal_img = self.transform(rgb_img)[None].cuda()
         else:
             self.goal_img = None
@@ -79,7 +81,7 @@ class Policy:
             rgb_img = self.transform(rgb_img)[None].cuda()
 
             if self.goal_img is not None:
-                if k == 'cam_high':
+                if k == "cam_high":
                     torch_imgs[f"cam{i}"] = torch.cat((self.goal_img, rgb_img), 0)[None]
                 else:
                     zero_pad = torch.zeros_like(self.goal_img)
