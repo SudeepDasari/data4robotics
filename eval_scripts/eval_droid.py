@@ -10,12 +10,12 @@ import torch
 import yaml
 
 # r2d2 robot imports
-from r2d2.user_interface.eval_gui import EvalGUI
+from droid.user_interface.eval_gui import EvalGUI
 
 import hydra
 
 
-class BaselinePolicy:
+class DROIDPolicy:
     def __init__(self, agent_path, model_name):
         with open(Path(agent_path, "agent_config.yaml"), "r") as f:
             config_yaml = f.read()
@@ -82,17 +82,9 @@ def main():
 
     agent_path = os.path.expanduser(os.path.dirname(args.checkpoint))
     model_name = args.checkpoint.split("/")[-1]
-    policy = BaselinePolicy(agent_path, model_name)
+    policy = DROIDPolicy(agent_path, model_name)
 
-    # test with a null observation if you desire
-    # img = {'26638268_left':np.zeros((512, 512, 3))}
-    # rbt_state = dict(cartesian_position=np.zeros((6,)),
-    #                  gripper_position=0)
-    # null_obs = dict(image=img, robot_state=rbt_state)
-    # policy.forward(null_obs); policy.forward(null_obs)
-    # exit(0)
-
-    # start up R2D2 eval gui
+    # start up DROID eval gui
     EvalGUI(policy=policy)
 
 
