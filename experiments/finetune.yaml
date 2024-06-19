@@ -26,7 +26,7 @@ checkpoint_path: ${exp_name}.ckpt
 batch_size: 100
 num_workers: 10
 lr: 0.0003
-max_iterations: 100000
+max_iterations: 150000
 eval_freq: 10000
 save_freq: 10000
 schedule_freq: 1

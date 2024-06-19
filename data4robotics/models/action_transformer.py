@@ -1,6 +1,6 @@
 # Copyright (c) Sudeep Dasari, 2023
 # Heavy inspiration taken from ACT by Tony Zhao: https://github.com/tonyzhaozh/act
-# and DETR by Meta AI: https://github.com/facebookresearch/detr
+# and DETR by Meta AI (Carion et. al.): https://github.com/facebookresearch/detr
 
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
