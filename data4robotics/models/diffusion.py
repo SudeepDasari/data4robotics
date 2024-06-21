@@ -308,13 +308,19 @@ class _DiTNoiseNet(nn.Module):
         )
 
     def forward(self, noise_actions, time, obs_enc, enc_cache=None):
-        time_enc = self.time_net(time)
-
         if enc_cache is None:
-            obs_enc = obs_enc.transpose(0, 1)
-            pos = self.enc_pos(obs_enc)
-            enc_cache = self.encoder(obs_enc, pos)
+            enc_cache = self.forward_enc(obs_enc)
+        return enc_cache, self.forward_dec(noise_actions, time, enc_cache)
+    
+    def forward_enc(self, obs_enc):
+        obs_enc = obs_enc.transpose(0, 1)
+        pos = self.enc_pos(obs_enc)
+        enc_cache = self.encoder(obs_enc, pos)
+        return enc_cache
 
+    def forward_dec(self, noise_actions, time, enc_cache):
+        time_enc = self.time_net(time)
+        
         ac_tokens = self.ac_proj(noise_actions)
         ac_tokens = ac_tokens.transpose(0, 1)
         dec_in = ac_tokens + self.dec_pos
@@ -323,7 +329,7 @@ class _DiTNoiseNet(nn.Module):
         dec_out = self.decoder(dec_in, time_enc, enc_cache)
 
         # apply final epsilon prediction layer
-        return enc_cache, self.eps_out(dec_out, time_enc, enc_cache[-1])
+        return self.eps_out(dec_out, time_enc, enc_cache[-1])
 
 
 class DiffusionTransformerAgent(BaseAgent):
@@ -420,6 +426,8 @@ class DiffusionTransformerAgent(BaseAgent):
             ), f"can't be > {self._train_diffusion_steps}"
             eval_steps = n_steps
 
+        enc_cache = self.noise_net.forward_enc(s_t)
+
         # begin diffusion process
         self.diffusion_schedule.set_timesteps(eval_steps)
         self.diffusion_schedule.alphas_cumprod = (
@@ -428,9 +436,7 @@ class DiffusionTransformerAgent(BaseAgent):
         for timestep in self.diffusion_schedule.timesteps:
             # predict noise given timestep
             batched_timestep = timestep.unsqueeze(0).repeat(B).to(device)
-            enc_cache, noise_pred = self.noise_net(
-                noise_actions, batched_timestep, s_t, enc_cache
-            )
+            noise_pred = self.noise_net.forward_dec(noise_actions, batched_timestep, enc_cache)
 
             # take diffusion step
             noise_actions = self.diffusion_schedule.step(

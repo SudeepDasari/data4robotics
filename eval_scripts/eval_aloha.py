@@ -15,6 +15,11 @@ import yaml
 
 import hydra
 
+
+# speed up torch agent using tensorcores
+torch.set_float32_matmul_precision('high')
+
+
 # add core aloha files to path then do aloha imports
 BASE_PATH = os.path.expanduser("~/aloha/")
 sys.path.append(BASE_PATH + "src")
@@ -42,10 +47,7 @@ class Policy:
 
         save_dict = torch.load(Path(agent_path, model_name), map_location="cpu")
         agent.load_state_dict(save_dict["model"])
-
-        agent = torch.compile(agent)
-
-        self.agent = agent.eval().cuda()
+        self.agent = torch.compile(agent.eval().cuda().get_actions)
 
         self.transform = hydra.utils.instantiate(obs_config["transform"])
         self.img_keys = obs_config["imgs"]
@@ -104,7 +106,7 @@ class Policy:
 
         start = time.time()
         with torch.no_grad():
-            ac = self.agent.get_actions(img, state)
+            ac = self.agent(img, state)
             ac = ac[0].cpu().numpy().astype(np.float32)[: self.args.pred_horizon]
         print("Inference time:", time.time() - start)
 
