@@ -125,7 +125,7 @@ class _ShiftScaleMod(nn.Module):
 
     def forward(self, x, c):
         c = self.act(c)
-        return x * self.scale(c)[None] + self.shift(c)[None]
+        return x * (1 + self.scale(c)[None]) + self.shift(c)[None]
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.scale.weight)
