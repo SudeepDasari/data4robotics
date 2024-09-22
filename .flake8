@@ -1,5 +1,5 @@
 [flake8]
-exclude = .git
+exclude = .git,data4robotics/sim/__init__.py
 max-line-length = 95
 select = E,F,W,C
 ignore=W503,

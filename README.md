@@ -21,6 +21,17 @@ If you find this codebase or our pre-trained representations useful at all, plea
     year = {2024},
 }
 ```
+
+And finally, if you use our diffusion transformer implementation please cite:
+```
+@inproceedings{dasari2024ditpi,
+    title={The Ingredients for Robotic Diffusion Transformers},
+    author = {Mohan Kumar Srirama and Sudeep Dasari and Shikhar Bahl and Abhinav Gupta},
+    booktitle = {arXiv e-prints},
+    year={2024},
+}
+```
+
 ## Installation
 Our repository is easy to install using miniconda or anaconda:
 
@@ -70,5 +81,8 @@ python finetune.py exp_name=test agent.features.restore_path=/path/to/SOUP_1M_DH
 
 # Diffusion Policy (U-Net head) w/ HRP representations
 python finetune.py exp_name=test agent=diffusion_unet task=end_effector_r6 agent/features=vit_base agent.features.restore_path=/path/to/IN_hrp.pth buffer_path=/data/path/buffer.pkl trainer=bc_cos_sched ac_chunk=16
+
+# Diffusion Transformer (DiT head) w/ ResNet tokenizer
+python finetune.py exp_name=test agent=diffusion task=end_effector_r6 agent/features=resnet_gn agent.features.restore_path=/pat/to/resnet18/IN_1M_resnet18.pth  trainer=bc_cos_sched ac_chunk=100
 ```
 This will result in a policy checkpoint saved in the `bc_finetune/<exp_name>` folder.
