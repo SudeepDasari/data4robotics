@@ -18,6 +18,7 @@ train_buffer:
   ac_chunk: ${ac_chunk}
   mode: train
   cam_indexes: [0]
+  goal_indexes: []
   past_frames: ${add:${img_chunk},-1}
   ac_dim: ${task.ac_dim}
 
@@ -29,5 +30,6 @@ test_buffer:
   ac_chunk: ${ac_chunk}
   mode: test
   cam_indexes: ${task.train_buffer.cam_indexes}
+  goal_indexes: ${task.train_buffer.goal_indexes}
   past_frames: ${add:${img_chunk},-1}
   ac_dim: ${task.ac_dim}
