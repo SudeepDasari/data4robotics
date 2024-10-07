@@ -227,9 +227,12 @@ def load_vit(model, restore_path):
     if restore_path:
         print("Restoring model from", restore_path)
         state_dict = torch.load(restore_path, map_location="cpu")
-        state_dict = (
-            state_dict["features"] if "features" in state_dict else state_dict["model"]
-        )
+        try:
+            state_dict = (
+                state_dict["features"] if "features" in state_dict else state_dict["model"]
+            )
+        except KeyError:
+            print(f"loading hrp model, ignoring key error")
 
         # resize pos_embed if required
         if state_dict["pos_embed"].shape != model.pos_embed.shape:
