@@ -64,12 +64,12 @@ def generate_heatmap(image, attn, head=1, patch_size=16, img_size=224):
     return heatmap_image[:, :, ::-1]
 
 
-def main(vit_model_name):
+def main(vit_model_name, img_path):
     vit_transform, vit_model = load_vit(vit_model_name)
     vit_model.eval()
 
     agent = Agent(vit_model, vit_transform)
-    image = cv2.imread("./examples/test_img.png")
+    image = cv2.imread(img_path)
 
     attn = agent.get_attention(image)
     heatmaps = [generate_heatmap(image, attn, head) for head in range(12)]
@@ -96,6 +96,12 @@ if __name__ == "__main__":
         default="VC1_hrp",
         help="Name of the ViT model to load (default: VC1_hrp)"
     )
+    parser.add_argument(
+        "--img_path",
+        type=str,
+        default="./examples/test_img.png",
+        help="Path to the image to visualize (default: ./examples/test_img.png)"
+    )
     
     args = parser.parse_args()
-    main(args.vit_model_name)
+    main(args.vit_model_name, args.img_path)
