@@ -7,7 +7,7 @@ If you find the this codebase or the diffusion transformer useful at all, please
 ```
 @inproceedings{dasari2024ditpi,
     title={The Ingredients for Robotic Diffusion Transformers},
-    author = {Mohan Kumar Srirama and Sudeep Dasari and Shikhar Bahl and Abhinav Gupta},
+    author = {Sudeep Dasari and Oier Mees and Sebastian Zhao and Mohan Kumar Srirama and Sergey Levine},
     booktitle = {arXiv e-prints},
     year={2024},
 }
