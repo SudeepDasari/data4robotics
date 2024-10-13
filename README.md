@@ -1,7 +1,7 @@
 # The Ingredients for Robotic Diffusion Transformers
-[DiT-Policy](https://dit-policy.github.io)
+[DiT-Policy](https://dit-policy.github.io) [HRP](https://hrp-robot.github.io) [data4robotics](https://data4robotics.github.io)
 
-This repository offers an implementation of our improved Diffusion Transformer Policy, which achieved State-of-the-Art manipulation results on bi-manual ALOHA robots and single-arm DROID Franka robots. This repo also allows easy use of our advanced pre-trained representations from [prior]([data4robotics.github.i](https://data4robotics.github.io)) [work](https://hrp-robot.github.io). We've succesfully deployed policies from this code on Franka robots (w/ [DROID](https://github.com/droid-dataset/droid/tree/main) and [MaNiMo](https://github.com/AGI-Labs/manimo)), [ALOHA](https://tonyzhaozh.github.io/aloha/) robots, and on [LEAP hands](https://www.leaphand.com). Check out our [eval scripts](eval_scripts/README.md) for more information. These policies can also be tested in simulation (see [Sim README](https://github.com/SudeepDasari/data4robotics/tree/dit_release/data4robotics/sim)).
+This repository offers an implementation of our improved Diffusion Transformer Policy, which achieved State-of-the-Art manipulation results on bi-manual ALOHA robots and single-arm DROID Franka robots. This repo also allows easy use of our advanced pre-trained representations from [prior](https://data4robotics.github.io) [work](https://hrp-robot.github.io). We've succesfully deployed policies from this code on Franka robots (w/ [DROID](https://github.com/droid-dataset/droid/tree/main) and [MaNiMo](https://github.com/AGI-Labs/manimo)), [ALOHA](https://tonyzhaozh.github.io/aloha/) robots, and on [LEAP hands](https://www.leaphand.com). Check out our [eval scripts](eval_scripts/README.md) for more information. These policies can also be tested in simulation (see [Sim README](https://github.com/SudeepDasari/data4robotics/tree/dit_release/data4robotics/sim)).
 
 If you find the this codebase or the diffusion transformer useful at all, please cite:
 ```
@@ -69,14 +69,12 @@ def convert_trajectories(input_trajs, out_path):
         pkl.dump(out_trajs, f)
 ```
 
-Once the conversion is complete, you can run the one of the example commands below:
+Once the conversion is complete, you can train our models using the example commands below:
 ```
-# OUR MODEL
-
-# Diffusion Transformer (DiT head) w/ ResNet tokenizer
+# Training DiT Policy (Diffusion Transformer w/ adaLN + ResNet Tokenizer)
 python finetune.py exp_name=test agent=diffusion task=end_effector_r6 agent/features=resnet_gn agent.features.restore_path=/pat/to/resnet18/IN_1M_resnet18.pth  trainer=bc_cos_sched ac_chunk=100
 
-# SOME EXAMPLE BASELINES
+## SOME EXAMPLE BASELINES
 
 # Gaussian Mixture Model bc-policy with SOUP representations
 python finetune.py exp_name=test agent.features.restore_path=/path/to/SOUP_1M_DH.pth buffer_path=/data/path/buffer.pkl
