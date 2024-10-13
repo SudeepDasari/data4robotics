@@ -44,7 +44,7 @@ pip install -e ./
 pre-commit install  # required for pushing back to the source git
 ```
 
-## Training BC Policies
+## Training DiT Policies (and Baselines)
 First, you're going to need to convert your training trajectories into our [robobuf](https://github.com/AGI-Labs/robobuf/tree/main) format (pseudo-code below). Check out some example ALOHA and DROID conversion code [here](https://github.com/AGI-Labs/r2d2_to_robobuf).
 
 ```
